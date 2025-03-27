@@ -1,13 +1,13 @@
 FROM eclipse-temurin:17-jdk-jammy
 
-WORKDIR /app
+WORKDIR /workspace
 
-COPY app/gradlew .
-COPY app/gradle gradle
-COPY app/build.gradle .
-COPY app/settings.gradle .
-COPY app/src src
+COPY . .
+
+WORKDIR /workspace/app
+
+RUN chmod +x gradlew
 
 RUN ./gradlew shadowJar
 
-CMD ["java", "-jar", "/app/build/libs/app.jar"]
+CMD ["java", "-jar", "/workspace/app/build/libs/app.jar"]
