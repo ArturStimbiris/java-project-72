@@ -17,6 +17,9 @@ dependencies {
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
     implementation("io.javalin:javalin:5.6.3")
     implementation("org.slf4j:slf4j-simple:2.0.9")
+    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation("org.postgresql:postgresql:42.7.3")
+    implementation("com.h2database:h2:2.2.224")
 }
 
 tasks.test {
