@@ -3,6 +3,8 @@ package hexlet.code.controllers;
 import hexlet.code.model.Url;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UrlController extends RootController {
     public static void save(Url url) throws SQLException {
@@ -30,6 +32,24 @@ public class UrlController extends RootController {
                 return url;
             }
             return null;
+        }
+    }
+
+    public static List<Url> getAll() throws SQLException {
+        var sql = "SELECT * FROM urls ORDER BY created_at DESC";
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+            var rs = stmt.executeQuery();
+            var urls = new ArrayList<Url>();
+
+            while (rs.next()) {
+                var url = new Url();
+                url.setId(rs.getLong("id"));
+                url.setName(rs.getString("name"));
+                url.setCreatedAt(rs.getTimestamp("created_at"));
+                urls.add(url);
+            }
+            return urls;
         }
     }
 }

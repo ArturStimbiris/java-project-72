@@ -1,11 +1,18 @@
 package hexlet.code;
 
-import hexlet.code.controllers.RootController;
+import gg.jte.ContentType;
+import gg.jte.TemplateEngine;
+import gg.jte.resolve.ResourceCodeResolver;
 import io.javalin.Javalin;
+import io.javalin.rendering.template.JavalinJte;
+import hexlet.code.controllers.RootController;
+import hexlet.code.controllers.UrlController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+
+import java.util.Map;
 
 public class App {
     private static final Logger LOGGER = LoggerFactory.getLogger(App.class);
@@ -39,8 +46,11 @@ public class App {
         }
     }
 
-    private static void addRoutes(Javalin app) {
-        app.get("/", ctx -> ctx.result("Hello World"));
+    private static TemplateEngine createTemplateEngine() {
+        return TemplateEngine.create(
+            new ResourceCodeResolver("templates", App.class.getClassLoader()),
+            ContentType.Html
+        );
     }
 
     public static Javalin getApp() throws Exception {
@@ -50,12 +60,16 @@ public class App {
 
         Javalin app = Javalin.create(config -> {
             config.plugins.enableDevLogging();
+            config.fileRenderer(new JavalinJte(createTemplateEngine()));
         });
-
-        addRoutes(app);
 
         app.before(ctx -> {
             LOGGER.info("Received request: {} {}", ctx.method(), ctx.path());
+        });
+
+        app.get("/", ctx -> {
+            var urls = UrlController.getAll();
+            ctx.render("index.jte", Map.of("urls", urls));
         });
 
         return app;
