@@ -1,5 +1,6 @@
 @import java.util.List
 @import hexlet.code.model.Url
+@import java.time.format.DateTimeFormatter
 
 <!DOCTYPE html>
 <html lang="en">
@@ -35,7 +36,7 @@
                                 <tr>
                                     <td>${url.id}</td>
                                     <td>${url.name}</td>
-                                    <td>${url.createdAt}</td>
+                                    <td>${url.createdAt.toLocalDateTime().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))}</td>
                                 </tr>
                             @endfor
                         </tbody>

@@ -7,12 +7,15 @@ import io.javalin.Javalin;
 import io.javalin.rendering.template.JavalinJte;
 import hexlet.code.controllers.RootController;
 import hexlet.code.controllers.UrlController;
+import hexlet.code.model.Url;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-import java.util.Map;
+import java.util.Collections;
+import java.util.List;
 
 public class App {
     private static final Logger LOGGER = LoggerFactory.getLogger(App.class);
@@ -68,8 +71,8 @@ public class App {
         });
 
         app.get("/", ctx -> {
-            var urls = UrlController.getAll();
-            ctx.render("index.jte", Map.of("urls", urls));
+            List<Url> urls = UrlController.getAll();
+            ctx.render("index.jte", Collections.singletonMap("urls", urls));
         });
 
         return app;
