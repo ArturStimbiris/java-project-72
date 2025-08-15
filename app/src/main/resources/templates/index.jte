@@ -1,3 +1,4 @@
+@param String flash
 @import hexlet.code.util.NamedRoutes
 
 <!DOCTYPE html>
