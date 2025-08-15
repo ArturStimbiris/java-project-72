@@ -1,55 +1,70 @@
 package hexlet.code.controllers;
 
 import hexlet.code.model.Url;
+import hexlet.code.repository.UrlRepository;
+import hexlet.code.util.NamedRoutes;
+import io.javalin.http.Context;
+import io.javalin.http.NotFoundResponse;
+
+import java.net.URI;
+import java.net.URL;
 import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.List; // Добавлен импорт List
 
-public class UrlController extends RootController {
-    public static void save(Url url) throws SQLException {
-        var sql = "INSERT INTO urls (name, created_at) VALUES (?, ?)";
-        try (var conn = dataSource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, url.getName());
-            stmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
-            stmt.executeUpdate();
+public class UrlController {
+
+    public static void create(Context ctx) {
+        String input = ctx.formParam("url");
+        if (input == null || input.isEmpty()) {
+            ctx.sessionAttribute("flash", "URL не может быть пустым");
+            ctx.redirect(NamedRoutes.rootPath());
+            return;
+        }
+
+        try {
+            URI uri = new URI(input);
+            URL parsed = uri.toURL();
+            int port = parsed.getPort();
+            String normalized = parsed.getProtocol() + "://"
+                    + parsed.getHost()
+                    + (port == -1 ? "" : ":" + port);
+
+            var existing = UrlRepository.findByName(normalized);
+            if (existing.isPresent()) {
+                ctx.sessionAttribute("flash", "Страница уже существует");
+                ctx.redirect(NamedRoutes.urlPath(existing.get().getId()));
+                return;
+            }
+
+            Url newUrl = new Url(normalized);
+            UrlRepository.save(newUrl);
+            ctx.sessionAttribute("flash", "Страница успешно добавлена");
+            ctx.redirect(NamedRoutes.urlsPath());
+        } catch (Exception e) {
+            ctx.sessionAttribute("flash", "Некорректный URL");
+            ctx.redirect(NamedRoutes.rootPath());
         }
     }
 
-    public static Url findByName(String name) throws SQLException {
-        var sql = "SELECT * FROM urls WHERE name = ?";
-        try (var conn = dataSource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, name);
-            var rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                var url = new Url();
-                url.setId(rs.getLong("id"));
-                url.setName(rs.getString("name"));
-                url.setCreatedAt(rs.getTimestamp("created_at"));
-                return url;
-            }
-            return null;
+    public static void index(Context ctx) {
+        try {
+            List<Url> urls = UrlRepository.getEntities();
+            ctx.attribute("urls", urls);
+            ctx.render("urls/index.jte");
+        } catch (SQLException e) {
+            ctx.status(500).result("Ошибка при доступе к базе данных");
         }
     }
 
-    public static List<Url> getAll() throws SQLException {
-        var sql = "SELECT * FROM urls ORDER BY created_at DESC";
-        try (var conn = dataSource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
-            var rs = stmt.executeQuery();
-            var urls = new ArrayList<Url>();
-
-            while (rs.next()) {
-                var url = new Url();
-                url.setId(rs.getLong("id"));
-                url.setName(rs.getString("name"));
-                url.setCreatedAt(rs.getTimestamp("created_at"));
-                urls.add(url);
-            }
-            return urls;
+    public static void show(Context ctx) {
+        long id = ctx.pathParamAsClass("id", Long.class).get();
+        try {
+            var url = UrlRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundResponse("URL не найден"));
+            ctx.attribute("url", url);
+            ctx.render("urls/show.jte");
+        } catch (SQLException e) {
+            ctx.status(500).result("Ошибка при доступе к базе данных");
         }
     }
 }

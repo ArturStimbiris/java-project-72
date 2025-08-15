@@ -1,85 +1,96 @@
 package hexlet.code;
 
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
 import gg.jte.ContentType;
 import gg.jte.TemplateEngine;
 import gg.jte.resolve.ResourceCodeResolver;
+import hexlet.code.controllers.UrlController;
+import hexlet.code.repository.BaseRepository;
+import hexlet.code.util.NamedRoutes;
 import io.javalin.Javalin;
 import io.javalin.rendering.template.JavalinJte;
-import hexlet.code.controllers.RootController;
-import hexlet.code.controllers.UrlController;
-import hexlet.code.model.Url;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-
-import java.util.Collections;
-import java.util.List;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
 
 public class App {
-    private static final Logger LOGGER = LoggerFactory.getLogger(App.class);
 
-    private static int getPort() {
-        String port = System.getenv().getOrDefault("PORT", "7070");
-        return Integer.valueOf(port);
-    }
-
-    private static HikariDataSource configureDataSource() {
-        String jdbcUrl = System.getenv().getOrDefault("JDBC_DATABASE_URL",
-            "jdbc:h2:mem:project;DB_CLOSE_DELAY=-1;");
-
-        HikariConfig config = new HikariConfig();
-        config.setJdbcUrl(jdbcUrl);
-        return new HikariDataSource(config);
-    }
-
-    private static void initDatabase(HikariDataSource dataSource) throws Exception {
-        var sql = """
-            CREATE TABLE IF NOT EXISTS urls (
-                id BIGINT PRIMARY KEY AUTO_INCREMENT,
-                name VARCHAR(255) NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-            """;
-
-        try (var conn = dataSource.getConnection();
-             var stmt = conn.createStatement()) {
-            stmt.execute(sql);
-        }
+    private static boolean isProduction() {
+        return System.getenv().getOrDefault("APP_ENV", "dev").equals("prod");
     }
 
     private static TemplateEngine createTemplateEngine() {
-        return TemplateEngine.create(
-            new ResourceCodeResolver("templates", App.class.getClassLoader()),
-            ContentType.Html
-        );
+        ClassLoader classLoader = App.class.getClassLoader();
+        ResourceCodeResolver codeResolver = new ResourceCodeResolver("templates", classLoader);
+        TemplateEngine templateEngine = TemplateEngine.create(codeResolver, ContentType.Html);
+        return templateEngine;
     }
 
     public static Javalin getApp() throws Exception {
-        var dataSource = configureDataSource();
-        RootController.setDataSource(dataSource);
-        initDatabase(dataSource);
+        // Конфигурация базы данных
+        HikariConfig hikariConfig = new HikariConfig();
+        String jdbcUrl = System.getenv().getOrDefault(
+            "JDBC_DATABASE_URL",
+            "jdbc:h2:mem:project;DB_CLOSE_DELAY=-1;"
+        );
+        hikariConfig.setJdbcUrl(jdbcUrl);
 
-        Javalin app = Javalin.create(config -> {
-            config.plugins.enableDevLogging();
-            config.fileRenderer(new JavalinJte(createTemplateEngine()));
+        if (jdbcUrl.startsWith("jdbc:h2")) {
+            hikariConfig.setUsername("");
+            hikariConfig.setPassword("");
+        }
+
+        HikariDataSource dataSource = new HikariDataSource(hikariConfig);
+        BaseRepository.setDataSource(dataSource);
+
+        // Инициализация базы данных
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.createStatement()) {
+            InputStream inputStream = App.class.getClassLoader().getResourceAsStream("schema.sql");
+            if (inputStream != null) {
+                String sql = new BufferedReader(
+                    new InputStreamReader(inputStream, StandardCharsets.UTF_8))
+                    .lines()
+                    .collect(Collectors.joining("\n"));
+                stmt.execute(sql);
+            }
+        }
+
+        // Создание и настройка Javalin
+        Javalin app = Javalin.create(configuration -> {
+            if (!isProduction()) {
+                configuration.bundledPlugins.enableDevLogging();
+            }
+
+            // Регистрация шаблонизатора JTE
+            TemplateEngine templateEngine = createTemplateEngine();
+            configuration.fileRenderer(new JavalinJte(templateEngine));
         });
 
+        // Middleware для flash-сообщений
         app.before(ctx -> {
-            LOGGER.info("Received request: {} {}", ctx.method(), ctx.path());
+            String flash = ctx.sessionAttribute("flash");
+            if (flash != null) {
+                ctx.attribute("flash", flash);
+                ctx.sessionAttribute("flash", null);
+            }
         });
 
-        app.get("/", ctx -> {
-            List<Url> urls = UrlController.getAll();
-            ctx.render("index.jte", Collections.singletonMap("urls", urls));
-        });
+        // Регистрация маршрутов
+        app.get(NamedRoutes.rootPath(), ctx -> ctx.render("index.jte"));
+        app.post(NamedRoutes.urlsPath(), UrlController::create);
+        app.get(NamedRoutes.urlsPath(), UrlController::index);
+        app.get(NamedRoutes.urlPath("{id}"), UrlController::show);
 
         return app;
     }
 
     public static void main(String[] args) throws Exception {
         Javalin app = getApp();
-        app.start(getPort());
+        app.start(7070);
     }
 }
