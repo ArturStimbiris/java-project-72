@@ -18,12 +18,16 @@ public class UrlRepository extends BaseRepository {
             stmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
             stmt.executeUpdate();
 
-            var generatedKeys = stmt.getGeneratedKeys();
-            if (generatedKeys.next()) {
-                url.setId(generatedKeys.getLong(1));
-            } else {
-                throw new SQLException("DB have not returned an id after saving an entity");
+            try (var generatedKeys = stmt.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    url.setId(generatedKeys.getLong(1));
+                } else {
+                    throw new SQLException("DB have not returned an id after saving an entity");
+                }
             }
+        } catch (SQLException e) {
+            System.err.println("Error saving URL: " + url.getName());
+            throw e;
         }
     }
 

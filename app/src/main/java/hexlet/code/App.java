@@ -26,22 +26,27 @@ public class App {
     private static TemplateEngine createTemplateEngine() {
         ClassLoader classLoader = App.class.getClassLoader();
         ResourceCodeResolver codeResolver = new ResourceCodeResolver("templates", classLoader);
-        TemplateEngine templateEngine = TemplateEngine.create(codeResolver, ContentType.Html);
-        return templateEngine;
+        return TemplateEngine.create(codeResolver, ContentType.Html);
     }
 
     public static Javalin getApp() throws Exception {
         // Конфигурация базы данных
-        HikariConfig hikariConfig = new HikariConfig();
         String jdbcUrl = System.getenv().getOrDefault(
             "JDBC_DATABASE_URL",
             "jdbc:h2:mem:project;DB_CLOSE_DELAY=-1;"
         );
+        
+        System.out.println("Using database URL: " + jdbcUrl);
+        
+        HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setJdbcUrl(jdbcUrl);
-
+        
         if (jdbcUrl.startsWith("jdbc:h2")) {
             hikariConfig.setUsername("");
             hikariConfig.setPassword("");
+        } else if (jdbcUrl.startsWith("jdbc:postgresql")) {
+            hikariConfig.setMaximumPoolSize(5);
+            hikariConfig.setConnectionInitSql("SELECT 1");
         }
 
         HikariDataSource dataSource = new HikariDataSource(hikariConfig);
@@ -50,25 +55,32 @@ public class App {
         // Инициализация базы данных
         try (var conn = dataSource.getConnection();
              var stmt = conn.createStatement()) {
+            System.out.println("Database connection established");
+            
             InputStream inputStream = App.class.getClassLoader().getResourceAsStream("schema.sql");
             if (inputStream != null) {
                 String sql = new BufferedReader(
                     new InputStreamReader(inputStream, StandardCharsets.UTF_8))
                     .lines()
                     .collect(Collectors.joining("\n"));
+                
+                System.out.println("Executing SQL schema:\n" + sql);
                 stmt.execute(sql);
+                System.out.println("Database schema initialized");
+            } else {
+                System.out.println("Schema file not found");
             }
+        } catch (Exception e) {
+            System.err.println("Database initialization failed:");
+            e.printStackTrace();
+            throw e;
         }
 
-        // Создание и настройка Javalin
-        Javalin app = Javalin.create(configuration -> {
-            if (!isProduction()) {
-                configuration.bundledPlugins.enableDevLogging();
-            }
-
+        // Создание и настройка Javalin - упрощенная версия без dev logging
+        Javalin app = Javalin.create(config -> {
             // Регистрация шаблонизатора JTE
             TemplateEngine templateEngine = createTemplateEngine();
-            configuration.fileRenderer(new JavalinJte(templateEngine));
+            config.fileRenderer(new JavalinJte(templateEngine));
         });
 
         // Middleware для flash-сообщений

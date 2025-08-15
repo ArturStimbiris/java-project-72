@@ -36,7 +36,7 @@ public class Url {
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
-
+    
     public String getAddress() {
         return name;
     }

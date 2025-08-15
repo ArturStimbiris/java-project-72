@@ -9,7 +9,7 @@ import io.javalin.http.NotFoundResponse;
 import java.net.URI;
 import java.net.URL;
 import java.sql.SQLException;
-import java.util.List; // Добавлен импорт List
+import java.util.List;
 
 public class UrlController {
 
