@@ -16,6 +16,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.HashMap;
 
 public class App {
 
@@ -93,7 +95,11 @@ public class App {
         });
 
         // Регистрация маршрутов
-        app.get(NamedRoutes.rootPath(), ctx -> ctx.render("index.jte"));
+        app.get(NamedRoutes.rootPath(), ctx -> {
+            Map<String, Object> model = new HashMap<>();
+            model.put("flash", ctx.attribute("flash"));
+            ctx.render("index.jte", model);
+        });
         app.post(NamedRoutes.urlsPath(), UrlController::create);
         app.get(NamedRoutes.urlsPath(), UrlController::index);
         app.get(NamedRoutes.urlPath("{id}"), UrlController::show);

@@ -9,7 +9,9 @@ import io.javalin.http.NotFoundResponse;
 import java.net.URI;
 import java.net.URL;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class UrlController {
 
@@ -49,8 +51,10 @@ public class UrlController {
     public static void index(Context ctx) {
         try {
             List<Url> urls = UrlRepository.getEntities();
-            ctx.attribute("urls", urls);
-            ctx.render("urls/index.jte");
+            Map<String, Object> model = new HashMap<>();
+            model.put("flash", ctx.attribute("flash"));
+            model.put("urls", urls);
+            ctx.render("urls/index.jte", model);
         } catch (SQLException e) {
             ctx.status(500).result("Ошибка при доступе к базе данных");
         }
@@ -61,8 +65,10 @@ public class UrlController {
         try {
             var url = UrlRepository.findById(id)
                     .orElseThrow(() -> new NotFoundResponse("URL не найден"));
-            ctx.attribute("url", url);
-            ctx.render("urls/show.jte");
+            Map<String, Object> model = new HashMap<>();
+            model.put("flash", ctx.attribute("flash"));
+            model.put("url", url);
+            ctx.render("urls/show.jte", model);
         } catch (SQLException e) {
             ctx.status(500).result("Ошибка при доступе к базе данных");
         }
