@@ -1,3 +1,5 @@
+@param String flash
+@param Url url
 @import hexlet.code.util.NamedRoutes
 @import hexlet.code.model.Url
 
