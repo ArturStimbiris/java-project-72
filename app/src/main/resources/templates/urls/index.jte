@@ -1,6 +1,6 @@
 @import hexlet.code.util.NamedRoutes
 @import hexlet.code.model.Url
-@import java.util.List  <!-- Добавляем этот импорт -->
+@import java.util.List
 
 @param String flash
 @param List<Url> urls
