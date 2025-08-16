@@ -78,7 +78,7 @@ public class App {
             throw e;
         }
 
-        // Создание и настройка Javalin - упрощенная версия без dev logging
+        // Создание и настройка Javalin
         Javalin app = Javalin.create(config -> {
             // Регистрация шаблонизатора JTE
             TemplateEngine templateEngine = createTemplateEngine();
@@ -109,6 +109,7 @@ public class App {
 
     public static void main(String[] args) throws Exception {
         Javalin app = getApp();
-        app.start(7070);
+        int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "7070"));
+        app.start(port);
     }
 }
