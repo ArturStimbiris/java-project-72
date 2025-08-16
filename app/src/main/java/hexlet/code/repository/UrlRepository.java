@@ -89,7 +89,7 @@ public class UrlRepository extends BaseRepository {
 
     public static List<Url> getEntities() throws SQLException {
         var sql = "SELECT * FROM urls ORDER BY created_at DESC";
-        LOGGER.debug("Executing SQL: {}", sql);
+        LOGGER.info("Executing SQL: {}", sql);
         
         try (var conn = dataSource.getConnection();
             var stmt = conn.prepareStatement(sql)) {
@@ -102,11 +102,10 @@ public class UrlRepository extends BaseRepository {
                 url.setCreatedAt(rs.getTimestamp("created_at"));
                 urls.add(url);
                 
-                // Детальное логирование каждого URL
-                LOGGER.info("Retrieved URL: ID={}, Name={}, CreatedAt={}", 
+                LOGGER.debug("Retrieved URL: ID={}, Name={}, CreatedAt={}", 
                     url.getId(), url.getName(), url.getCreatedAt());
             }
-            LOGGER.info("Total URLs found: {}", urls.size());
+            LOGGER.info("Total URLs retrieved: {}", urls.size());
             return urls;
         }
     }

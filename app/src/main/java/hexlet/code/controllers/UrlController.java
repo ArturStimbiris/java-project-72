@@ -68,13 +68,11 @@ public class UrlController {
             LOGGER.info("Fetching all URLs");
             List<Url> urls = UrlRepository.getEntities();
             
-            // Добавим логирование содержимого
-            if (urls.isEmpty()) {
-                LOGGER.info("URL list is empty");
-            } else {
-                for (Url url : urls) {
-                    LOGGER.info("URL in list: ID={}, Name={}", url.getId(), url.getName());
-                }
+            // Детальное логирование
+            LOGGER.info("Found {} URLs", urls.size());
+            for (Url url : urls) {
+                LOGGER.info("URL: ID={}, Name={}, CreatedAt={}", 
+                    url.getId(), url.getName(), url.getCreatedAt());
             }
             
             Map<String, Object> model = new HashMap<>();
