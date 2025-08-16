@@ -27,7 +27,7 @@
       <dd class="col-sm-9">${url.getAddress()}</dd>
 
       <dt class="col-sm-3">Дата создания</dt>
-      <dd class="col-sm-9">${url.getCreatedAt()}</dd>
+      <dd class="col-sm-9">${url.getFormattedCreatedAt()}</dd>
     </dl>
 
     <a href="${NamedRoutes.urlsPath()}" class="btn btn-secondary">Назад к списку</a>

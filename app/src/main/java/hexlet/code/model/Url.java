@@ -1,11 +1,15 @@
 package hexlet.code.model;
 
 import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class Url {
     private Long id;
     private String name;
     private Timestamp createdAt;
+    
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
     public Url() { }
 
@@ -39,5 +43,9 @@ public class Url {
     
     public String getAddress() {
         return name;
+    }
+    
+    public String getFormattedCreatedAt() {
+        return DATE_FORMAT.format(new Date(createdAt.getTime()));
     }
 }

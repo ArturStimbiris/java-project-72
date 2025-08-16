@@ -101,8 +101,12 @@ public class UrlRepository extends BaseRepository {
                 url.setName(rs.getString("name"));
                 url.setCreatedAt(rs.getTimestamp("created_at"));
                 urls.add(url);
+                
+                // Подробное логирование
+                LOGGER.debug("Retrieved URL: ID={}, Name={}, CreatedAt={}", 
+                    url.getId(), url.getName(), url.getCreatedAt());
             }
-            LOGGER.debug("Found {} URLs", urls.size());
+            LOGGER.info("Found {} URLs", urls.size());
             return urls;
         }
     }
