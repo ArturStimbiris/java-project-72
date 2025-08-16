@@ -41,11 +41,10 @@ public class Url {
         this.createdAt = createdAt;
     }
     
-    public String getAddress() {
-        return name;
-    }
-    
     public String getFormattedCreatedAt() {
+        if (createdAt == null) {
+            return "N/A";
+        }
         return DATE_FORMAT.format(new Date(createdAt.getTime()));
     }
 }

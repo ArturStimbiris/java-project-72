@@ -92,7 +92,7 @@ public class UrlRepository extends BaseRepository {
         LOGGER.debug("Executing SQL: {}", sql);
         
         try (var conn = dataSource.getConnection();
-             var stmt = conn.prepareStatement(sql)) {
+            var stmt = conn.prepareStatement(sql)) {
             var rs = stmt.executeQuery();
             var urls = new ArrayList<Url>();
             while (rs.next()) {
@@ -102,11 +102,11 @@ public class UrlRepository extends BaseRepository {
                 url.setCreatedAt(rs.getTimestamp("created_at"));
                 urls.add(url);
                 
-                // Подробное логирование
-                LOGGER.debug("Retrieved URL: ID={}, Name={}, CreatedAt={}", 
+                // Детальное логирование каждого URL
+                LOGGER.info("Retrieved URL: ID={}, Name={}, CreatedAt={}", 
                     url.getId(), url.getName(), url.getCreatedAt());
             }
-            LOGGER.info("Found {} URLs", urls.size());
+            LOGGER.info("Total URLs found: {}", urls.size());
             return urls;
         }
     }
