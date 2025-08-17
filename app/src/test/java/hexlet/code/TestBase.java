@@ -4,6 +4,8 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import hexlet.code.repository.BaseRepository;
 import io.javalin.Javalin;
+import kong.unirest.Unirest;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -16,13 +18,11 @@ public class TestBase {
 
     @BeforeEach
     public void beforeEach() throws Exception {
-        // Создаём уникальную in-memory БД для каждого теста
         var hikariConfig = new HikariConfig();
         String jdbcUrl = "jdbc:h2:mem:test_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
         hikariConfig.setJdbcUrl(jdbcUrl);
         dataSource = new HikariDataSource(hikariConfig);
 
-        // Устанавливаем её в репозитории и инициализируем схему
         BaseRepository.setDataSource(dataSource);
         try (var conn = dataSource.getConnection();
              var stmt = conn.createStatement()) {
@@ -30,10 +30,7 @@ public class TestBase {
             stmt.execute(sql);
         }
 
-        // Создаём приложение — оно по умолчанию создаст своё соединение, но
-        // ниже мы его перезатираем тестовым
         app = App.getApp();
-        // Переключаем репозитории обратно на тестовую БД
         BaseRepository.setDataSource(dataSource);
     }
 
@@ -45,5 +42,10 @@ public class TestBase {
         if (dataSource != null) {
             dataSource.close();
         }
+    }
+
+    @AfterAll
+    public static void afterAll() {
+        Unirest.shutDown();
     }
 }

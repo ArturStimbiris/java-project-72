@@ -47,10 +47,11 @@
         <table class="table table-striped url-table">
           <thead class="table-dark">
             <tr>
-              <th style="width: 10%">ID</th>
-              <th style="width: 60%">URL</th>
-              <th style="width: 20%">Дата добавления</th>
-              <th style="width: 10%">Действия</th>
+              <th style="width: 5%">ID</th>
+              <th style="width: 50%">URL</th>
+              <th style="width: 15%">Последняя проверка</th>
+              <th style="width: 10%">Код ответа</th>
+              <th style="width: 20%">Действия</th>
             </tr>
           </thead>
           <tbody>
@@ -60,7 +61,16 @@
                 <td class="url-cell">
                   <a href="${url.getName()}" target="_blank">${url.getName()}</a>
                 </td>
-                <td>${url.getFormattedCreatedAt()}</td>
+                <td>
+                  @if(url.getLastCheck() != null)
+                    ${url.getLastCheck().getFormattedCreatedAt()}
+                  @endif
+                </td>
+                <td>
+                  @if(url.getLastCheck() != null)
+                    ${url.getLastCheck().getStatusCode()}
+                  @endif
+                </td>
                 <td>
                   <a href="${NamedRoutes.urlPath(url.getId())}" 
                      class="btn btn-sm btn-primary">

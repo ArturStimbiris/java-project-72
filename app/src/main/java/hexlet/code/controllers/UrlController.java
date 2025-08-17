@@ -1,13 +1,14 @@
 package hexlet.code.controllers;
 
 import hexlet.code.model.Url;
+import hexlet.code.model.UrlCheck;
+import hexlet.code.repository.UrlCheckRepository;
 import hexlet.code.repository.UrlRepository;
+import hexlet.code.service.UrlChecker;
 import hexlet.code.util.NamedRoutes;
 import io.javalin.http.Context;
 import io.javalin.http.NotFoundResponse;
 
-import java.net.URI;
-import java.net.URL;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
@@ -32,8 +33,8 @@ public class UrlController {
         }
 
         try {
-            URI uri = new URI(input);
-            URL parsed = uri.toURL();
+            java.net.URI uri = new java.net.URI(input);
+            java.net.URL parsed = uri.toURL();
             int port = parsed.getPort();
             String normalized = parsed.getProtocol() + "://"
                     + parsed.getHost()
@@ -68,13 +69,6 @@ public class UrlController {
             LOGGER.info("Fetching all URLs");
             List<Url> urls = UrlRepository.getEntities();
             
-            // Детальное логирование
-            LOGGER.info("Found {} URLs", urls.size());
-            for (Url url : urls) {
-                LOGGER.info("URL: ID={}, Name={}, CreatedAt={}", 
-                    url.getId(), url.getName(), url.getCreatedAt());
-            }
-            
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
             model.put("urls", urls);
@@ -93,13 +87,40 @@ public class UrlController {
             var url = UrlRepository.findById(id)
                     .orElseThrow(() -> new NotFoundResponse("URL не найден"));
             
+            List<UrlCheck> checks = UrlCheckRepository.findByUrlId(id);
+            
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
             model.put("url", url);
+            model.put("checks", checks);
             ctx.render("urls/show.jte", model);
         } catch (SQLException e) {
             LOGGER.error("Database error when fetching URL by ID: {}", id, e);
             ctx.status(500).result("Ошибка при доступе к базе данных");
         }
+    }
+
+    public static void check(Context ctx) {
+        long id = ctx.pathParamAsClass("id", Long.class).get();
+        LOGGER.info("Checking URL by ID: {}", id);
+        
+        try {
+            var url = UrlRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundResponse("URL не найден"));
+            
+            UrlCheck check = UrlChecker.check(url);
+            
+            if (check != null) {
+                UrlCheckRepository.save(check);
+                ctx.sessionAttribute("flash", "Страница успешно проверена");
+            } else {
+                ctx.sessionAttribute("flash", "Ошибка при проверке страницы");
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error during URL check", e);
+            ctx.sessionAttribute("flash", "Ошибка при проверке: " + e.getMessage());
+        }
+        
+        ctx.redirect(NamedRoutes.urlPath(id));
     }
 }

@@ -1,6 +1,7 @@
 package hexlet.code.repository;
 
 import hexlet.code.model.Url;
+import hexlet.code.model.UrlCheck;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
@@ -88,11 +89,20 @@ public class UrlRepository extends BaseRepository {
     }
 
     public static List<Url> getEntities() throws SQLException {
-        var sql = "SELECT * FROM urls ORDER BY created_at DESC";
+        var sql = "SELECT u.id, u.name, u.created_at, " +
+                  "uc.status_code, uc.created_at AS last_check_date " +
+                  "FROM urls u " +
+                  "LEFT JOIN ( " +
+                  "  SELECT url_id, status_code, created_at, " +
+                  "         ROW_NUMBER() OVER (PARTITION BY url_id ORDER BY created_at DESC) as rn " +
+                  "  FROM url_checks " +
+                  ") uc ON u.id = uc.url_id AND uc.rn = 1 " +
+                  "ORDER BY u.created_at DESC";
+        
         LOGGER.info("Executing SQL: {}", sql);
         
         try (var conn = dataSource.getConnection();
-            var stmt = conn.prepareStatement(sql)) {
+             var stmt = conn.prepareStatement(sql)) {
             var rs = stmt.executeQuery();
             var urls = new ArrayList<Url>();
             while (rs.next()) {
@@ -100,10 +110,17 @@ public class UrlRepository extends BaseRepository {
                 url.setId(rs.getLong("id"));
                 url.setName(rs.getString("name"));
                 url.setCreatedAt(rs.getTimestamp("created_at"));
-                urls.add(url);
                 
-                LOGGER.debug("Retrieved URL: ID={}, Name={}, CreatedAt={}", 
-                    url.getId(), url.getName(), url.getCreatedAt());
+                if (rs.getObject("status_code") != null) {
+                    UrlCheck lastCheck = new UrlCheck();
+                    lastCheck.setStatusCode(rs.getInt("status_code"));
+                    lastCheck.setCreatedAt(rs.getTimestamp("last_check_date"));
+                    url.setLastCheck(lastCheck);
+                }
+                
+                urls.add(url);
+                LOGGER.debug("Retrieved URL: ID={}, Name={}, LastCheck={}", 
+                    url.getId(), url.getName(), url.getLastCheck());
             }
             LOGGER.info("Total URLs retrieved: {}", urls.size());
             return urls;

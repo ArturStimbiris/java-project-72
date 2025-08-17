@@ -8,6 +8,7 @@ public class Url {
     private Long id;
     private String name;
     private Timestamp createdAt;
+    private UrlCheck lastCheck;
     
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
@@ -47,5 +48,13 @@ public class Url {
     
     public String getFormattedCreatedAt() {
         return DATE_FORMAT.format(new Date(createdAt.getTime()));
+    }
+    
+    public UrlCheck getLastCheck() {
+        return lastCheck;
+    }
+
+    public void setLastCheck(UrlCheck lastCheck) {
+        this.lastCheck = lastCheck;
     }
 }

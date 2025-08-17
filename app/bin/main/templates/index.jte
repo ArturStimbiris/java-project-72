@@ -1,5 +1,7 @@
 @import hexlet.code.util.NamedRoutes
 
+@param String flash
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>

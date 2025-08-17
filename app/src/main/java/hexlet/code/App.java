@@ -10,6 +10,7 @@ import hexlet.code.repository.BaseRepository;
 import hexlet.code.util.NamedRoutes;
 import io.javalin.Javalin;
 import io.javalin.rendering.template.JavalinJte;
+import kong.unirest.Unirest;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -20,6 +21,16 @@ import java.util.Map;
 import java.util.HashMap;
 
 public class App {
+
+    static {
+        // Конфигурация Unirest
+        Unirest.config()
+            .socketTimeout(5000)
+            .connectTimeout(5000)
+            .concurrency(10, 5)
+            .setDefaultHeader("Accept", "text/html")
+            .setDefaultHeader("User-Agent", "Mozilla/5.0 (compatible; MyApp/1.0)");
+    }
 
     private static boolean isProduction() {
         return System.getenv().getOrDefault("APP_ENV", "dev").equals("prod");
@@ -32,7 +43,6 @@ public class App {
     }
 
     public static Javalin getApp() throws Exception {
-        // Формируем уникальный URL для in-memory H2, если не задан JDBC_DATABASE_URL
         String defaultJdbcUrl = "jdbc:h2:mem:project" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
         String jdbcUrl = System.getenv().getOrDefault(
             "JDBC_DATABASE_URL",
@@ -41,7 +51,6 @@ public class App {
 
         System.out.println("Using database URL: " + jdbcUrl);
 
-        // Настраиваем HikariCP
         HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setJdbcUrl(jdbcUrl);
 
@@ -53,11 +62,9 @@ public class App {
             hikariConfig.setConnectionInitSql("SELECT 1");
         }
 
-        // Создаём и регистрируем dataSource
         HikariDataSource dataSource = new HikariDataSource(hikariConfig);
         BaseRepository.setDataSource(dataSource);
 
-        // Инициализируем схему
         try (var conn = dataSource.getConnection();
              var stmt = conn.createStatement()) {
             System.out.println("Database connection established");
@@ -81,13 +88,11 @@ public class App {
             throw e;
         }
 
-        // Создаём Javalin и настраиваем шаблонизатор
         Javalin app = Javalin.create(config -> {
             TemplateEngine templateEngine = createTemplateEngine();
             config.fileRenderer(new JavalinJte(templateEngine));
         });
 
-        // Middleware для flash-сообщений
         app.before(ctx -> {
             String flash = ctx.sessionAttribute("flash");
             if (flash != null) {
@@ -96,7 +101,6 @@ public class App {
             }
         });
 
-        // Роуты
         app.get(NamedRoutes.rootPath(), ctx -> {
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
@@ -105,6 +109,7 @@ public class App {
         app.post(NamedRoutes.urlsPath(), UrlController::create);
         app.get(NamedRoutes.urlsPath(), UrlController::index);
         app.get(NamedRoutes.urlPath("{id}"), UrlController::show);
+        app.post(NamedRoutes.checkPath("{id}"), UrlController::check);
 
         return app;
     }

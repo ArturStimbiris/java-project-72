@@ -1,5 +1,9 @@
 @import hexlet.code.util.NamedRoutes
 @import hexlet.code.model.Url
+@import java.util.List
+
+@param String flash
+@param List<Url> urls
 
 <!DOCTYPE html>
 <html lang="ru">
@@ -7,40 +11,85 @@
     <meta charset="UTF-8">
     <title>Список URL</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .url-table {
+            table-layout: fixed;
+        }
+        .url-cell {
+            word-wrap: break-word;
+            max-width: 500px;
+        }
+        .container-custom {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+    </style>
 </head>
 <body class="bg-light">
-  <div class="container py-5">
+  <div class="container-custom py-5">
 
     @if(flash != null)
-      <div class="alert alert-info">${flash}</div>
+      <div class="alert alert-info alert-dismissible fade show" role="alert">
+        ${flash}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
     @endif
 
-    <h1 class="mb-4">Все сохранённые URL</h1>
-    <table class="table table-striped">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Адрес</th>
-          <th>Дата создания</th>
-          <th>Действия</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (Url url : urls)
-          <tr>
-            <td>${url.getId()}</td>
-            <td>${url.getAddress()}</td>
-            <td>${url.getCreatedAt()}</td>
-            <td>
-              <a href="${NamedRoutes.urlPath(url.getId())}" class="btn btn-sm btn-info">
-                Подробнее
-              </a>
-            </td>
-          </tr>
-        @endfor
-      </tbody>
-    </table>
+    <h1 class="mb-4">Список добавленных URL</h1>
+    
+    @if(urls == null || urls.isEmpty())
+      <div class="alert alert-warning">
+        Нет сохранённых URL. <a href="${NamedRoutes.rootPath()}">Добавить URL</a>
+      </div>
+    @else
+      <div class="table-responsive">
+        <table class="table table-striped url-table">
+          <thead class="table-dark">
+            <tr>
+              <th style="width: 5%">ID</th>
+              <th style="width: 50%">URL</th>
+              <th style="width: 15%">Последняя проверка</th>
+              <th style="width: 10%">Код ответа</th>
+              <th style="width: 20%">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (Url url : urls)
+              <tr>
+                <td>${url.getId()}</td>
+                <td class="url-cell">
+                  <a href="${url.getName()}" target="_blank">${url.getName()}</a>
+                </td>
+                <td>
+                  @if(url.getLastCheck() != null)
+                    ${url.getLastCheck().getFormattedCreatedAt()}
+                  @endif
+                </td>
+                <td>
+                  @if(url.getLastCheck() != null)
+                    ${url.getLastCheck().getStatusCode()}
+                  @endif
+                </td>
+                <td>
+                  <a href="${NamedRoutes.urlPath(url.getId())}" 
+                     class="btn btn-sm btn-primary">
+                    Подробнее
+                  </a>
+                </td>
+              </tr>
+            @endfor
+          </tbody>
+        </table>
+      </div>
+    @endif
+
+    <div class="mt-4">
+      <a href="${NamedRoutes.rootPath()}" class="btn btn-secondary">На главную</a>
+    </div>
 
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
