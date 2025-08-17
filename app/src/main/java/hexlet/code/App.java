@@ -32,17 +32,19 @@ public class App {
     }
 
     public static Javalin getApp() throws Exception {
-        // Конфигурация базы данных
+        // Формируем уникальный URL для in-memory H2, если не задан JDBC_DATABASE_URL
+        String defaultJdbcUrl = "jdbc:h2:mem:project" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
         String jdbcUrl = System.getenv().getOrDefault(
             "JDBC_DATABASE_URL",
-            "jdbc:h2:mem:project;DB_CLOSE_DELAY=-1;"
+            defaultJdbcUrl
         );
-        
+
         System.out.println("Using database URL: " + jdbcUrl);
-        
+
+        // Настраиваем HikariCP
         HikariConfig hikariConfig = new HikariConfig();
         hikariConfig.setJdbcUrl(jdbcUrl);
-        
+
         if (jdbcUrl.startsWith("jdbc:h2")) {
             hikariConfig.setUsername("");
             hikariConfig.setPassword("");
@@ -51,21 +53,22 @@ public class App {
             hikariConfig.setConnectionInitSql("SELECT 1");
         }
 
+        // Создаём и регистрируем dataSource
         HikariDataSource dataSource = new HikariDataSource(hikariConfig);
         BaseRepository.setDataSource(dataSource);
 
-        // Инициализация базы данных
+        // Инициализируем схему
         try (var conn = dataSource.getConnection();
              var stmt = conn.createStatement()) {
             System.out.println("Database connection established");
-            
+
             InputStream inputStream = App.class.getClassLoader().getResourceAsStream("schema.sql");
             if (inputStream != null) {
                 String sql = new BufferedReader(
                     new InputStreamReader(inputStream, StandardCharsets.UTF_8))
                     .lines()
                     .collect(Collectors.joining("\n"));
-                
+
                 System.out.println("Executing SQL schema:\n" + sql);
                 stmt.execute(sql);
                 System.out.println("Database schema initialized");
@@ -78,9 +81,8 @@ public class App {
             throw e;
         }
 
-        // Создание и настройка Javalin
+        // Создаём Javalin и настраиваем шаблонизатор
         Javalin app = Javalin.create(config -> {
-            // Регистрация шаблонизатора JTE
             TemplateEngine templateEngine = createTemplateEngine();
             config.fileRenderer(new JavalinJte(templateEngine));
         });
@@ -94,7 +96,7 @@ public class App {
             }
         });
 
-        // Регистрация маршрутов
+        // Роуты
         app.get(NamedRoutes.rootPath(), ctx -> {
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));

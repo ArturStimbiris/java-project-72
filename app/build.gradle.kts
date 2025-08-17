@@ -1,7 +1,11 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+
 plugins {
     java
     application
     id("com.github.johnrengelman.shadow") version "8.1.1"
+    jacoco
 }
 
 group = "hexlet.code"
@@ -22,16 +26,37 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.9")
     
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("io.javalin:javalin-testtools:6.3.0")
+    testImplementation("org.assertj:assertj-core:3.25.3")
 }
 
 tasks.test {
     useJUnitPlatform()
+    testLogging {
+        events = setOf(
+            TestLogEvent.PASSED,
+            TestLogEvent.FAILED,
+            TestLogEvent.SKIPPED,
+            TestLogEvent.STANDARD_OUT
+        )
+    }
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
 }
 
@@ -39,7 +64,7 @@ application {
     mainClass.set("hexlet.code.App")
 }
 
-tasks.shadowJar {
+tasks.named<ShadowJar>("shadowJar") {
     archiveBaseName.set("app")
     archiveClassifier.set("")
     archiveVersion.set("")
@@ -47,7 +72,4 @@ tasks.shadowJar {
     manifest {
         attributes["Main-Class"] = "hexlet.code.App"
     }
-    
-    from(sourceSets.main.get().output)
-    configurations = listOf(project.configurations.runtimeClasspath.get())
 }
