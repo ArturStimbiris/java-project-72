@@ -13,16 +13,21 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
+      
+      - name: Navigate to app directory
+        run: cd app
+      
       - name: Build with Gradle
-        run: |
-          ./gradlew wrapper
-          ./gradlew build
+        run: ./gradlew build
+      
       - name: Run tests with coverage
         run: ./gradlew jacocoTestReport
+      
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          file: build/reports/jacoco/test/jacocoTestReport.xml
+          file: app/build/reports/jacoco/test/jacocoTestReport.xml
           flags: unittests
           env_vars: OS,PYTHON
           name: codecov-umbrella
