@@ -33,7 +33,7 @@
         @if(footer != null)
             ${footer}
         @else
-            <p>© 2023 Анализатор страниц</p>
+            <p>Анализатор страниц</p>
         @endif
     </footer>
 
