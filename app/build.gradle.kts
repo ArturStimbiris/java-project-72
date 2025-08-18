@@ -33,6 +33,7 @@ dependencies {
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("io.javalin:javalin-testtools:6.3.0")
     testImplementation("org.assertj:assertj-core:3.25.3")
+    testImplementation("com.konghq:unirest-java:3.14.5")
 }
 
 tasks.test {

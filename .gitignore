@@ -42,3 +42,26 @@ Thumbs.db
 
 # Build reports
 build/reports/
+
+# Игнорируем сгенерированные файлы JTE
+jte-classes/
+
+# Игнорируем папки сборки
+build/
+bin/
+out/
+.gradle/
+
+# Игнорируем файлы IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Игнорируем логи
+*.log
+logs/
+
+# Игнорируем системные файлы
+.DS_Store
