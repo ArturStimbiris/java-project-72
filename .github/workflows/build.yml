@@ -8,6 +8,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
@@ -15,20 +16,29 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
       
-      - name: Navigate to app directory
-        run: cd app
+      - name: Verify Gradle Wrapper
+        run: |
+          cd app
+          if [ ! -f "gradlew" ]; then
+            echo "gradlew not found! Generating..."
+            ./gradlew wrapper --gradle-version 8.7
+          fi
+          chmod +x gradlew
       
       - name: Build with Gradle
-        run: ./gradlew build
+        run: |
+          cd app
+          ./gradlew build
       
       - name: Run tests with coverage
-        run: ./gradlew jacocoTestReport
+        run: |
+          cd app
+          ./gradlew jacocoTestReport
       
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
           file: app/build/reports/jacoco/test/jacocoTestReport.xml
           flags: unittests
-          env_vars: OS,PYTHON
-          name: codecov-umbrella
+          name: codecov-java
           fail_ci_if_error: false
