@@ -42,7 +42,7 @@ public final class JtepageGenerated {
 			jteOutput.writeUserContent(footer);
 			jteOutput.writeContent("\n        ");
 		} else {
-			jteOutput.writeContent("\n            <p>© 2023 Анализатор страниц</p>\n        ");
+			jteOutput.writeContent("\n            <p>Анализатор страниц</p>\n        ");
 		}
 		jteOutput.writeContent("\n    </footer>\n\n    <script src=\"https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js\"></script>\n</body>\n</html>");
 	}
