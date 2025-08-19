@@ -1,6 +1,6 @@
 package hexlet.code.dto;
 
-public class UrlDto {
+public final class UrlDto {
     private String url;
 
     public UrlDto() { }

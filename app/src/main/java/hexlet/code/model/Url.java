@@ -4,12 +4,12 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class Url {
+public final class Url {
     private Long id;
     private String name;
     private Timestamp createdAt;
     private UrlCheck lastCheck;
-    
+
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
 
     public Url() { }
@@ -41,15 +41,15 @@ public class Url {
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
     }
-    
+
     public String getAddress() {
         return name;
     }
-    
+
     public String getFormattedCreatedAt() {
         return DATE_FORMAT.format(new Date(createdAt.getTime()));
     }
-    
+
     public UrlCheck getLastCheck() {
         return lastCheck;
     }
