@@ -19,30 +19,29 @@ public class UrlShowTest extends TestBase {
     void testShowUrl() throws SQLException, IOException {
         JavalinTest.test(app, (server, client) -> {
             System.out.println("=== Starting testShowUrl ===");
-            
-            // Добавление тестовых данных
+
             Url url = new Url("https://show-test.com");
             UrlRepository.save(url);
             long id = url.getId();
             System.out.println("Created URL with ID: " + id);
-            
+
             Response response = client.get("/urls/" + id);
             System.out.println("Response code: " + response.code());
             String body = response.body().string();
             System.out.println("Response body: " + body);
-            
+
             assertThat(response.code())
                 .as("Check response code")
                 .isEqualTo(HttpStatus.OK.getCode());
-                
+
             assertThat(body)
                 .as("Check body contains URL")
                 .contains("https://show-test.com");
-                
+
             assertThat(body)
                 .as("Check body contains 'Детали URL'")
                 .contains("Детали URL");
-                
+
             System.out.println("=== Finished testShowUrl ===");
         });
     }

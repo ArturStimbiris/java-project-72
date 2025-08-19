@@ -1,7 +1,6 @@
 package hexlet.code;
 
 import kong.unirest.Unirest;
-import kong.unirest.UnirestException;
 import io.javalin.Javalin;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;

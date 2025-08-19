@@ -37,7 +37,7 @@ public class UrlCheckTest extends TestBase {
         String mockBody = "<html><head><title>Test Page</title>"
                         + "<meta name=\"description\" content=\"Test Description\">"
                         + "</head><body><h1>Test Header</h1></body></html>";
-        
+
         mockWebServer.enqueue(new MockResponse()
                 .setBody(mockBody)
                 .setResponseCode(200));
@@ -47,14 +47,14 @@ public class UrlCheckTest extends TestBase {
         JavalinTest.test(app, (server, client) -> {
             Url url = new Url(testUrl);
             UrlRepository.save(url);
-            
+
             var response = client.post("/urls/" + url.getId() + "/checks");
-            
+
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-            
+
             var checks = UrlCheckRepository.findByUrlId(url.getId());
             assertThat(checks).hasSize(1);
-            
+
             var check = checks.get(0);
             assertThat(check.getStatusCode()).isEqualTo(200);
             assertThat(check.getTitle()).isEqualTo("Test Page");

@@ -15,16 +15,16 @@ public class UrlCheckRepository extends BaseRepository {
 
         try (var conn = dataSource.getConnection();
              var stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            
+
             stmt.setLong(1, urlCheck.getUrlId());
             stmt.setInt(2, urlCheck.getStatusCode());
             stmt.setString(3, urlCheck.getTitle());
             stmt.setString(4, urlCheck.getH1());
             stmt.setString(5, urlCheck.getDescription());
             stmt.setTimestamp(6, new Timestamp(System.currentTimeMillis()));
-            
+
             stmt.executeUpdate();
-            
+
             try (var generatedKeys = stmt.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
                     urlCheck.setId(generatedKeys.getLong(1));
@@ -35,14 +35,14 @@ public class UrlCheckRepository extends BaseRepository {
 
     public static List<UrlCheck> findByUrlId(Long urlId) throws SQLException {
         String sql = "SELECT * FROM url_checks WHERE url_id = ? ORDER BY created_at DESC";
-        
+
         try (var conn = dataSource.getConnection();
              var stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setLong(1, urlId);
             var resultSet = stmt.executeQuery();
             var checks = new ArrayList<UrlCheck>();
-            
+
             while (resultSet.next()) {
                 var check = new UrlCheck();
                 check.setId(resultSet.getLong("id"));

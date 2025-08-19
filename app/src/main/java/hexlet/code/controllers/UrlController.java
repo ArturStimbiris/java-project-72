@@ -24,7 +24,7 @@ public class UrlController {
     public static void create(Context ctx) {
         String input = ctx.formParam("url");
         LOGGER.info("Received URL input: {}", input);
-        
+
         if (input == null || input.isEmpty()) {
             LOGGER.warn("Empty URL submitted");
             ctx.sessionAttribute("flash", "URL не может быть пустым");
@@ -54,7 +54,7 @@ public class UrlController {
             Url newUrl = new Url(normalized);
             UrlRepository.save(newUrl);
             LOGGER.info("URL saved successfully, ID: {}", newUrl.getId());
-            
+
             ctx.sessionAttribute("flash", "Страница успешно добавлена");
             ctx.redirect(NamedRoutes.urlsPath());
         } catch (Exception e) {
@@ -68,7 +68,7 @@ public class UrlController {
         try {
             LOGGER.info("Fetching all URLs");
             List<Url> urls = UrlRepository.getEntities();
-            
+
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
             model.put("urls", urls);
@@ -82,13 +82,13 @@ public class UrlController {
     public static void show(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
         LOGGER.info("Fetching URL by ID: {}", id);
-        
+
         try {
             var url = UrlRepository.findById(id)
                     .orElseThrow(() -> new NotFoundResponse("URL не найден"));
-            
+
             List<UrlCheck> checks = UrlCheckRepository.findByUrlId(id);
-            
+
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
             model.put("url", url);
@@ -103,13 +103,13 @@ public class UrlController {
     public static void check(Context ctx) {
         long id = ctx.pathParamAsClass("id", Long.class).get();
         LOGGER.info("Checking URL by ID: {}", id);
-        
+
         try {
             var url = UrlRepository.findById(id)
                     .orElseThrow(() -> new NotFoundResponse("URL не найден"));
-            
+
             UrlCheck check = UrlChecker.check(url);
-            
+
             if (check != null) {
                 UrlCheckRepository.save(check);
                 ctx.sessionAttribute("flash", "Страница успешно проверена");
@@ -120,7 +120,7 @@ public class UrlController {
             LOGGER.error("Error during URL check", e);
             ctx.sessionAttribute("flash", "Ошибка при проверке: " + e.getMessage());
         }
-        
+
         ctx.redirect(NamedRoutes.urlPath(id));
     }
 }
