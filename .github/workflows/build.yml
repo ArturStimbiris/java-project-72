@@ -36,9 +36,7 @@ jobs:
           ./gradlew jacocoTestReport
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
-          file: app/build/reports/jacoco/test/jacocoTestReport.xml
-          flags: unittests
-          name: codecov-java
-          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./app/build/reports/jacoco/test/jacocoTestReport.xml
