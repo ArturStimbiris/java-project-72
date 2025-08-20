@@ -2,7 +2,6 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 plugins {
-    java
     application
     id("com.github.johnrengelman.shadow") version "8.1.1"
     jacoco
@@ -17,6 +16,9 @@ repositories {
 }
 
 dependencies {
+    compileOnly("org.projectlombok:lombok:1.18.30")
+    annotationProcessor("org.projectlombok:lombok:1.18.30")
+    
     implementation("io.javalin:javalin:6.3.0")
     implementation("io.javalin:javalin-rendering:6.3.0")
     implementation("gg.jte:jte:3.1.9")
