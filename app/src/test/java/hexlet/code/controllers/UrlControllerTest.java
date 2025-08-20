@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -22,11 +24,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class UrlControllerTest extends TestBase {
 
     private static MockWebServer mockWebServer;
+    private static String testHtmlContent;
 
     @BeforeAll
     static void setUp() throws IOException {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
+
+        testHtmlContent = Files.readString(Paths.get("src/test/resources/test-page.html"));
     }
 
     @AfterAll
@@ -109,12 +114,8 @@ public class UrlControllerTest extends TestBase {
 
     @Test
     void testCheckUrl() throws SQLException, IOException {
-        String mockBody = "<html><head><title>Test Page</title>"
-                        + "<meta name=\"description\" content=\"Test Description\">"
-                        + "</head><body><h1>Test Header</h1></body></html>";
-
         mockWebServer.enqueue(new MockResponse()
-                .setBody(mockBody)
+                .setBody(testHtmlContent)
                 .setResponseCode(200));
 
         String testUrl = mockWebServer.url("/").toString();
