@@ -66,5 +66,5 @@ logs/
 # Игнорируем системные файлы
 .DS_Store
 
-/app/jte-classes/
-/app/bin/
+app/bin/
+app/jte-classes/
