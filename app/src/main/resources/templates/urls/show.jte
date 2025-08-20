@@ -1,11 +1,10 @@
 @import hexlet.code.util.NamedRoutes
 @import java.util.List
-@import hexlet.code.model.Url
 @import hexlet.code.model.UrlCheck
+@import hexlet.code.dto.UrlInfoDto
 
 @param String flash
-@param Url url
-@param List<UrlCheck> checks
+@param UrlInfoDto urlInfo
 
 @template.layout.page(
     content = @`
@@ -16,16 +15,16 @@
         <h1 class="mb-4">Детали URL</h1>
         <dl class="row">
             <dt class="col-sm-3">ID</dt>
-            <dd class="col-sm-9">${url.getId()}</dd>
+            <dd class="col-sm-9">${urlInfo.getUrl().getId()}</dd>
 
             <dt class="col-sm-3">Адрес</dt>
-            <dd class="col-sm-9">${url.getAddress()}</dd>
+            <dd class="col-sm-9">${urlInfo.getUrl().getName()}</dd>
 
             <dt class="col-sm-3">Дата создания</dt>
-            <dd class="col-sm-9">${url.getFormattedCreatedAt()}</dd>
+            <dd class="col-sm-9">${urlInfo.getUrl().getFormattedCreatedAt()}</dd>
         </dl>
 
-        <form action="${NamedRoutes.checkPath(url.getId())}" method="post" class="mb-3">
+        <form action="${NamedRoutes.checkPath(urlInfo.getUrl().getId())}" method="post" class="mb-3">
             <button type="submit" class="btn btn-primary">Проверить</button>
         </form>
 
@@ -42,8 +41,8 @@
                 </tr>
             </thead>
             <tbody>
-                @if(checks != null && !checks.isEmpty())
-                    @for(UrlCheck check : checks)
+                @if(urlInfo.getChecks() != null && !urlInfo.getChecks().isEmpty())
+                    @for(UrlCheck check : urlInfo.getChecks())
                         <tr>
                             <td>${check.getId()}</td>
                             <td>${check.getStatusCode()}</td>

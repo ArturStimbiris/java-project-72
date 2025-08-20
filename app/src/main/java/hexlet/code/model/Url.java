@@ -1,16 +1,14 @@
 package hexlet.code.model;
 
-import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public final class Url {
     private Long id;
     private String name;
-    private Timestamp createdAt;
-    private UrlCheck lastCheck;
+    private LocalDateTime createdAt;
 
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     public Url() { }
 
@@ -34,27 +32,15 @@ public final class Url {
         this.name = name;
     }
 
-    public Timestamp getCreatedAt() {
+    public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(Timestamp createdAt) {
+    public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
 
-    public String getAddress() {
-        return name;
-    }
-
     public String getFormattedCreatedAt() {
-        return DATE_FORMAT.format(new Date(createdAt.getTime()));
-    }
-
-    public UrlCheck getLastCheck() {
-        return lastCheck;
-    }
-
-    public void setLastCheck(UrlCheck lastCheck) {
-        this.lastCheck = lastCheck;
+        return createdAt == null ? "" : DATE_FORMAT.format(createdAt);
     }
 }

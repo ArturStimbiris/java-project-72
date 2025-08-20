@@ -1,0 +1,1597 @@
+File: ./Dockerfile
+FROM gradle:8.7.0-jdk21
+
+WORKDIR /app
+
+COPY /app .
+
+RUN gradle installDist
+
+CMD ./build/install/app/bin/appFile: ./app/.gradle/file-system.probe
+File: ./app/.gradle/vcs-1/gc.properties
+File: ./app/.gradle/buildOutputCleanup/outputFiles.bin
+File: ./app/.gradle/buildOutputCleanup/cache.properties
+File: ./app/.gradle/buildOutputCleanup/buildOutputCleanup.lock
+File: ./app/.gradle/8.7/dependencies-accessors/gc.properties
+File: ./app/.gradle/8.7/expanded/expanded.lock
+File: ./app/.gradle/8.7/executionHistory/executionHistory.lock
+File: ./app/.gradle/8.7/executionHistory/executionHistory.bin
+File: ./app/.gradle/8.7/checksums/md5-checksums.bin
+File: ./app/.gradle/8.7/checksums/checksums.lock
+File: ./app/.gradle/8.7/checksums/sha1-checksums.bin
+File: ./app/.gradle/8.7/gc.properties
+File: ./app/.gradle/8.7/fileChanges/last-build.bin
+File: ./app/.gradle/8.7/fileHashes/fileHashes.bin
+File: ./app/.gradle/8.7/fileHashes/resourceHashesCache.bin
+File: ./app/.gradle/8.7/fileHashes/fileHashes.lock
+File: ./app/javac.20250819_212834.args
+File: ./app/gradlew
+File: ./app/src/test/java/hexlet/code/TestBase.java
+package hexlet.code;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import hexlet.code.repository.BaseRepository;
+import io.javalin.Javalin;
+import kong.unirest.Unirest;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+
+import java.nio.file.Files;
+import java.nio.file.Paths;
+
+public class TestBase {
+    protected Javalin app;
+    protected HikariDataSource dataSource;
+
+    /**
+     * Sets up the test environment before each test method execution.
+     * Initializes in-memory H2 database, loads schema, and starts Javalin app.
+     *
+     * @throws Exception if any error occurs during setup
+     */
+    @BeforeEach
+    public void beforeEach() throws Exception {
+        var hikariConfig = new HikariConfig();
+        String jdbcUrl = "jdbc:h2:mem:test_" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
+        hikariConfig.setJdbcUrl(jdbcUrl);
+        dataSource = new HikariDataSource(hikariConfig);
+
+        BaseRepository.setDataSource(dataSource);
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.createStatement()) {
+            String sql = Files.readString(Paths.get("src/main/resources/schema.sql"));
+            stmt.execute(sql);
+        }
+
+        app = App.getApp();
+        BaseRepository.setDataSource(dataSource);
+    }
+
+    /**
+     * Cleans up resources after each test method execution.
+     * Stops Javalin app and closes database connection.
+     */
+    @AfterEach
+    public void afterEach() {
+        if (app != null) {
+            app.stop();
+        }
+        if (dataSource != null) {
+            dataSource.close();
+        }
+    }
+
+    @AfterAll
+    public static void afterAll() {
+        Unirest.shutDown();
+    }
+}
+File: ./app/src/test/java/hexlet/code/controllers/RootControllerTest.java
+package hexlet.code.controllers;
+
+import hexlet.code.TestBase;
+import io.javalin.http.HttpStatus;
+import io.javalin.testtools.JavalinTest;
+import okhttp3.Response;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class RootControllerTest extends TestBase {
+    @Test
+    void testIndex() throws IOException {
+        JavalinTest.test(app, (server, client) -> {
+            System.out.println("=== Starting testIndex ===");
+
+            Response response = client.get("/");
+            System.out.println("Response code: " + response.code());
+            String body = response.body().string();
+            System.out.println("Response body: " + body);
+
+            assertThat(response.code())
+                .as("Check response code")
+                .isEqualTo(HttpStatus.OK.getCode());
+
+            assertThat(body)
+                .as("Check body contains 'Добавить новый URL'")
+                .contains("Добавить новый URL");
+
+            System.out.println("=== Finished testIndex ===");
+        });
+    }
+}
+File: ./app/src/test/java/hexlet/code/controllers/UrlCreateTest.java
+package hexlet.code.controllers;
+
+import hexlet.code.TestBase;
+import hexlet.code.model.Url;
+import hexlet.code.repository.UrlRepository;
+import io.javalin.http.HttpStatus;
+import io.javalin.testtools.JavalinTest;
+import okhttp3.Response;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class UrlCreateTest extends TestBase {
+
+    @Test
+    void testCreateValidUrl() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            // Отправляем POST с валидным URL
+            String form = "url=https://example.com";
+            Response response = client.post("/urls", form);
+
+            // После редиректа клиент возвращает список (200)
+            assertThat(response.code())
+                .as("Код ответа после удачного создания должен быть 200")
+                .isEqualTo(HttpStatus.OK.getCode());
+
+            String body = response.body().string();
+
+            // Проверяем, что это страница списка и адрес на ней есть
+            assertThat(body)
+                .as("Страница списка должна содержать заголовок")
+                .contains("Список добавленных URL");
+            assertThat(body)
+                .as("Страница списка должна содержать добавленный адрес")
+                .contains("https://example.com");
+
+            // И в БД ровно одна запись
+            List<Url> urls = UrlRepository.getEntities();
+            assertThat(urls)
+                .as("В БД должна появиться одна ссылка")
+                .hasSize(1);
+            assertThat(urls.get(0).getName())
+                .as("Сохранённая ссылка должна содержать example.com")
+                .contains("example.com");
+        });
+    }
+
+    @Test
+    void testCreateInvalidUrl() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            // Отправляем POST с некорректным URL
+            String form = "url=invalid";
+            Response response = client.post("/urls", form);
+
+            // Клиент автоматически следует за редиректом на "/", получаем код 200
+            assertThat(response.code())
+                .as("Код ответа после ошибки должен быть 200")
+                .isEqualTo(HttpStatus.OK.getCode());
+
+            String body = response.body().string();
+
+            // Проверяем, что мы снова на форме добавления
+            assertThat(body)
+                .as("После ошибки должен быть рендер index.jte")
+                .contains("<h1 class=\"mb-4\">Добавить новый URL</h1>");
+
+            // В БД не появилось новых записей
+            List<Url> urls = UrlRepository.getEntities();
+            assertThat(urls)
+                .as("При ошибке валидации записи не добавляются")
+                .isEmpty();
+        });
+    }
+}
+File: ./app/src/test/java/hexlet/code/controllers/UrlShowTest.java
+package hexlet.code.controllers;
+
+import hexlet.code.TestBase;
+import hexlet.code.model.Url;
+import hexlet.code.repository.UrlRepository;
+import io.javalin.http.HttpStatus;
+import io.javalin.testtools.JavalinTest;
+import okhttp3.Response;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class UrlShowTest extends TestBase {
+
+    @Test
+    void testShowUrl() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            System.out.println("=== Starting testShowUrl ===");
+
+            Url url = new Url("https://show-test.com");
+            UrlRepository.save(url);
+            long id = url.getId();
+            System.out.println("Created URL with ID: " + id);
+
+            Response response = client.get("/urls/" + id);
+            System.out.println("Response code: " + response.code());
+            String body = response.body().string();
+            System.out.println("Response body: " + body);
+
+            assertThat(response.code())
+                .as("Check response code")
+                .isEqualTo(HttpStatus.OK.getCode());
+
+            assertThat(body)
+                .as("Check body contains URL")
+                .contains("https://show-test.com");
+
+            assertThat(body)
+                .as("Check body contains 'Детали URL'")
+                .contains("Детали URL");
+
+            System.out.println("=== Finished testShowUrl ===");
+        });
+    }
+}
+File: ./app/src/test/java/hexlet/code/controllers/UrlCheckTest.java
+package hexlet.code.controllers;
+
+import hexlet.code.TestBase;
+import hexlet.code.model.Url;
+import hexlet.code.repository.UrlCheckRepository;
+import hexlet.code.repository.UrlRepository;
+import io.javalin.http.HttpStatus;
+import io.javalin.testtools.JavalinTest;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class UrlCheckTest extends TestBase {
+
+    private static MockWebServer mockWebServer;
+
+    @BeforeAll
+    static void setUp() throws IOException {
+        mockWebServer = new MockWebServer();
+        mockWebServer.start();
+    }
+
+    @AfterAll
+    static void tearDown() throws IOException {
+        mockWebServer.shutdown();
+    }
+
+    @Test
+    void testCheckUrl() throws SQLException, IOException {
+        String mockBody = "<html><head><title>Test Page</title>"
+                        + "<meta name=\"description\" content=\"Test Description\">"
+                        + "</head><body><h1>Test Header</h1></body></html>";
+
+        mockWebServer.enqueue(new MockResponse()
+                .setBody(mockBody)
+                .setResponseCode(200));
+
+        String testUrl = mockWebServer.url("/").toString();
+
+        JavalinTest.test(app, (server, client) -> {
+            Url url = new Url(testUrl);
+            UrlRepository.save(url);
+
+            var response = client.post("/urls/" + url.getId() + "/checks");
+
+            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+
+            var checks = UrlCheckRepository.findByUrlId(url.getId());
+            assertThat(checks).hasSize(1);
+
+            var check = checks.get(0);
+            assertThat(check.getStatusCode()).isEqualTo(200);
+            assertThat(check.getTitle()).isEqualTo("Test Page");
+            assertThat(check.getH1()).isEqualTo("Test Header");
+            assertThat(check.getDescription()).isEqualTo("Test Description");
+        });
+    }
+}
+File: ./app/src/test/java/hexlet/code/controllers/UrlListTest.java
+package hexlet.code.controllers;
+
+import hexlet.code.TestBase;
+import hexlet.code.model.Url;
+import hexlet.code.repository.UrlRepository;
+import io.javalin.http.HttpStatus;
+import io.javalin.testtools.JavalinTest;
+import okhttp3.Response;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.sql.SQLException;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class UrlListTest extends TestBase {
+
+    @Test
+    void testListUrls() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            System.out.println("=== Starting testListUrls ===");
+
+            Url url1 = new Url("https://test1.com");
+            Url url2 = new Url("https://test2.com");
+            UrlRepository.save(url1);
+            UrlRepository.save(url2);
+            System.out.println("Added 2 URLs to database");
+
+            Response response = client.get("/urls");
+            System.out.println("Response code: " + response.code());
+            String body = response.body().string();
+            System.out.println("Response body: " + body);
+
+            assertThat(response.code())
+                .as("Check response code")
+                .isEqualTo(HttpStatus.OK.getCode());
+
+            assertThat(body)
+                .as("Check body contains first URL")
+                .contains("https://test1.com");
+
+            assertThat(body)
+                .as("Check body contains second URL")
+                .contains("https://test2.com");
+
+            System.out.println("=== Finished testListUrls ===");
+        });
+    }
+}
+File: ./app/src/test/java/hexlet/code/AppTest.java
+package hexlet.code;
+
+import kong.unirest.Unirest;
+import io.javalin.Javalin;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import io.javalin.testtools.JavalinTest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class AppTest {
+    private static Javalin app;
+
+    @BeforeAll
+    public static void beforeAll() {
+        app = App.getApp();
+    }
+
+    @AfterAll
+    public static void afterAll() {
+        app.stop();
+        Unirest.shutDown();
+    }
+
+    @Test
+    void testRoot() {
+        JavalinTest.test(app, (server, client) -> {
+            var response = client.get("/");
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body().string()).contains("Анализатор страниц");
+        });
+    }
+}
+File: ./app/src/main/java/hexlet/code/App.java
+package hexlet.code;
+
+import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import gg.jte.ContentType;
+import gg.jte.TemplateEngine;
+import gg.jte.resolve.ResourceCodeResolver;
+import hexlet.code.controllers.UrlController;
+import hexlet.code.repository.BaseRepository;
+import hexlet.code.util.NamedRoutes;
+import io.javalin.Javalin;
+import io.javalin.rendering.template.JavalinJte;
+import kong.unirest.Unirest;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.HashMap;
+
+public class App {
+
+    static {
+        // Конфигурация Unirest
+        Unirest.config()
+            .socketTimeout(5000)
+            .connectTimeout(5000)
+            .concurrency(10, 5)
+            .setDefaultHeader("Accept", "text/html")
+            .setDefaultHeader("User-Agent", "Mozilla/5.0 (compatible; MyApp/1.0)");
+    }
+
+    private static boolean isProduction() {
+        return System.getenv().getOrDefault("APP_ENV", "dev").equals("prod");
+    }
+
+    private static TemplateEngine createTemplateEngine() {
+        ClassLoader classLoader = App.class.getClassLoader();
+        ResourceCodeResolver codeResolver = new ResourceCodeResolver("templates", classLoader);
+        return TemplateEngine.create(codeResolver, ContentType.Html);
+    }
+
+    public static Javalin getApp() {
+        try {
+            String defaultJdbcUrl = "jdbc:h2:mem:project" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
+            String jdbcUrl = System.getenv().getOrDefault(
+                "JDBC_DATABASE_URL",
+                defaultJdbcUrl
+            );
+
+            System.out.println("Using database URL: " + jdbcUrl);
+
+            HikariConfig hikariConfig = new HikariConfig();
+            hikariConfig.setJdbcUrl(jdbcUrl);
+
+            if (jdbcUrl.startsWith("jdbc:h2")) {
+                hikariConfig.setUsername("");
+                hikariConfig.setPassword("");
+            } else if (jdbcUrl.startsWith("jdbc:postgresql")) {
+                hikariConfig.setMaximumPoolSize(5);
+                hikariConfig.setConnectionInitSql("SELECT 1");
+            }
+
+            HikariDataSource dataSource = new HikariDataSource(hikariConfig);
+            BaseRepository.setDataSource(dataSource);
+
+            try (var conn = dataSource.getConnection();
+                 var stmt = conn.createStatement()) {
+                System.out.println("Database connection established");
+
+                InputStream inputStream = App.class.getClassLoader().getResourceAsStream("schema.sql");
+                if (inputStream != null) {
+                    String sql = new BufferedReader(
+                        new InputStreamReader(inputStream, StandardCharsets.UTF_8))
+                        .lines()
+                        .collect(Collectors.joining("\n"));
+
+                    System.out.println("Executing SQL schema:\n" + sql);
+                    stmt.execute(sql);
+                    System.out.println("Database schema initialized");
+                } else {
+                    System.out.println("Schema file not found");
+                }
+            } catch (Exception e) {
+                System.err.println("Database initialization failed:");
+                e.printStackTrace();
+                throw new RuntimeException(e);
+            }
+
+            Javalin app = Javalin.create(config -> {
+                TemplateEngine templateEngine = createTemplateEngine();
+                config.fileRenderer(new JavalinJte(templateEngine));
+            });
+
+            app.before(ctx -> {
+                String flash = ctx.sessionAttribute("flash");
+                if (flash != null) {
+                    ctx.attribute("flash", flash);
+                    ctx.sessionAttribute("flash", null);
+                }
+            });
+
+            app.get(NamedRoutes.rootPath(), ctx -> {
+                Map<String, Object> model = new HashMap<>();
+                model.put("flash", ctx.attribute("flash"));
+                ctx.render("index.jte", model);
+            });
+            app.post(NamedRoutes.urlsPath(), UrlController::create);
+            app.get(NamedRoutes.urlsPath(), UrlController::index);
+            app.get(NamedRoutes.urlPath("{id}"), UrlController::show);
+            app.post(NamedRoutes.checkPath("{id}"), UrlController::check);
+
+            return app;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to initialize application", e);
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            Javalin app = getApp();
+            int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "7070"));
+            app.start(port);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+}
+File: ./app/src/main/java/hexlet/code/model/UrlCheck.java
+package hexlet.code.model;
+
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+
+public final class UrlCheck {
+    private Long id;
+    private Long urlId;
+    private int statusCode;
+    private String title;
+    private String h1;
+    private String description;
+    private Timestamp createdAt;
+
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Long getUrlId() {
+        return urlId;
+    }
+
+    public void setUrlId(Long urlId) {
+        this.urlId = urlId;
+    }
+
+    public int getStatusCode() {
+        return statusCode;
+    }
+
+    public void setStatusCode(int statusCode) {
+        this.statusCode = statusCode;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public String getH1() {
+        return h1;
+    }
+
+    public void setH1(String h1) {
+        this.h1 = h1;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public Timestamp getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Timestamp createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getFormattedCreatedAt() {
+        return createdAt == null ? "" : DATE_FORMAT.format(createdAt);
+    }
+}
+File: ./app/src/main/java/hexlet/code/model/Url.java
+package hexlet.code.model;
+
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+public final class Url {
+    private Long id;
+    private String name;
+    private Timestamp createdAt;
+    private UrlCheck lastCheck;
+
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+
+    public Url() { }
+
+    public Url(String name) {
+        this.name = name;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Timestamp getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Timestamp createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getAddress() {
+        return name;
+    }
+
+    public String getFormattedCreatedAt() {
+        return DATE_FORMAT.format(new Date(createdAt.getTime()));
+    }
+
+    public UrlCheck getLastCheck() {
+        return lastCheck;
+    }
+
+    public void setLastCheck(UrlCheck lastCheck) {
+        this.lastCheck = lastCheck;
+    }
+}
+File: ./app/src/main/java/hexlet/code/util/NamedRoutes.java
+package hexlet.code.util;
+
+public class NamedRoutes {
+    public static String rootPath() {
+        return "/";
+    }
+
+    public static String urlsPath() {
+        return "/urls";
+    }
+
+    public static String urlPath(Long id) {
+        return urlPath(String.valueOf(id));
+    }
+
+    public static String urlPath(String id) {
+        return "/urls/" + id;
+    }
+
+    public static String checkPath(Long id) {
+        return checkPath(String.valueOf(id));
+    }
+
+    public static String checkPath(String id) {
+        return urlPath(id) + "/checks";
+    }
+}
+File: ./app/src/main/java/hexlet/code/controllers/RootController.java
+package hexlet.code.controllers;
+
+import com.zaxxer.hikari.HikariDataSource;
+
+public class RootController {
+    protected static HikariDataSource dataSource;
+
+    public static void setDataSource(HikariDataSource newDataSource) {
+        dataSource = newDataSource;
+    }
+}
+File: ./app/src/main/java/hexlet/code/controllers/UrlController.java
+package hexlet.code.controllers;
+
+import hexlet.code.model.Url;
+import hexlet.code.model.UrlCheck;
+import hexlet.code.repository.UrlCheckRepository;
+import hexlet.code.repository.UrlRepository;
+import hexlet.code.service.UrlChecker;
+import hexlet.code.util.NamedRoutes;
+import io.javalin.http.Context;
+import io.javalin.http.NotFoundResponse;
+import lombok.extern.slf4j.Slf4j;
+
+import java.net.URI;
+import java.net.URL;
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+public class UrlController {
+
+    public static void create(Context ctx) {
+        String input = ctx.formParam("url");
+        log.info("Received URL input: {}", input);
+
+        if (input == null || input.isEmpty()) {
+            log.warn("Empty URL submitted");
+            ctx.sessionAttribute("flash", "URL не может быть пустым");
+            ctx.redirect(NamedRoutes.rootPath());
+            return;
+        }
+
+        URL parsedUrl;
+        try {
+            URI uri = new URI(input);
+            parsedUrl = uri.toURL();
+        } catch (Exception e) {
+            log.error("Invalid URL: {}", input, e);
+            ctx.sessionAttribute("flash", "Некорректный URL");
+            ctx.redirect(NamedRoutes.rootPath());
+            return;
+        }
+
+        int port = parsedUrl.getPort();
+        String normalized = parsedUrl.getProtocol() + "://"
+                + parsedUrl.getHost()
+                + (port == -1 ? "" : ":" + port);
+
+        log.info("Normalized URL: {}", normalized);
+
+        try {
+            var existing = UrlRepository.findByName(normalized);
+            if (existing.isPresent()) {
+                log.info("URL already exists: {}", normalized);
+                ctx.sessionAttribute("flash", "Страница уже существует");
+                ctx.redirect(NamedRoutes.urlPath(existing.get().getId()));
+                return;
+            }
+
+            log.info("Saving new URL: {}", normalized);
+            Url newUrl = new Url(normalized);
+            UrlRepository.save(newUrl);
+            log.info("URL saved successfully, ID: {}", newUrl.getId());
+
+            ctx.sessionAttribute("flash", "Страница успешно добавлена");
+            ctx.redirect(NamedRoutes.urlsPath());
+        } catch (SQLException e) {
+            log.error("Database error when saving URL", e);
+            ctx.sessionAttribute("flash", "Ошибка базы данных");
+            ctx.redirect(NamedRoutes.rootPath());
+        }
+    }
+
+    public static void index(Context ctx) {
+        try {
+            log.info("Fetching all URLs");
+            List<Url> urls = UrlRepository.getEntities();
+
+            Map<String, Object> model = new HashMap<>();
+            model.put("flash", ctx.attribute("flash"));
+            model.put("urls", urls);
+            ctx.render("urls/index.jte", model);
+        } catch (SQLException e) {
+            log.error("Database error when fetching URLs", e);
+            ctx.status(500).result("Ошибка при доступе к базе данных");
+        }
+    }
+
+    public static void show(Context ctx) {
+        long id = ctx.pathParamAsClass("id", Long.class).get();
+        log.info("Fetching URL by ID: {}", id);
+
+        try {
+            var url = UrlRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundResponse("URL не найден"));
+
+            List<UrlCheck> checks = UrlCheckRepository.findByUrlId(id);
+
+            Map<String, Object> model = new HashMap<>();
+            model.put("flash", ctx.attribute("flash"));
+            model.put("url", url);
+            model.put("checks", checks);
+            ctx.render("urls/show.jte", model);
+        } catch (SQLException e) {
+            log.error("Database error when fetching URL by ID: {}", id, e);
+            ctx.status(500).result("Ошибка при доступе к базе данных");
+        }
+    }
+
+    public static void check(Context ctx) {
+        long id = ctx.pathParamAsClass("id", Long.class).get();
+        log.info("Checking URL by ID: {}", id);
+
+        try {
+            var url = UrlRepository.findById(id)
+                    .orElseThrow(() -> new NotFoundResponse("URL не найден"));
+
+            UrlCheck check = UrlChecker.check(url);
+            UrlCheckRepository.save(check);
+
+            ctx.sessionAttribute("flash", "Страница успешно проверена");
+        } catch (SQLException e) {
+            log.error("Database error during URL check", e);
+            ctx.sessionAttribute("flash", "Ошибка базы данных");
+        } catch (Exception e) {
+            log.error("Error during URL check", e);
+            ctx.sessionAttribute("flash", "Ошибка при проверке: " + e.getMessage());
+        }
+
+        ctx.redirect(NamedRoutes.urlPath(id));
+    }
+}
+File: ./app/src/main/java/hexlet/code/service/UrlChecker.java
+package hexlet.code.service;
+
+import hexlet.code.model.Url;
+import hexlet.code.model.UrlCheck;
+import kong.unirest.Unirest;
+import kong.unirest.HttpResponse;
+import kong.unirest.UnirestException;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+
+public class UrlChecker {
+
+    public static UrlCheck check(Url url) {
+        try {
+            HttpResponse<String> response = Unirest
+                    .get(url.getName())
+                    .asString();
+
+            int statusCode = response.getStatus();
+            Document doc = Jsoup.parse(response.getBody());
+
+            String title = doc.title();
+            String h1 = doc.selectFirst("h1") != null ? doc.selectFirst("h1").text() : "";
+            String description = doc.selectFirst("meta[name=description]") != null
+                    ? doc.selectFirst("meta[name=description]").attr("content")
+                    : "";
+
+            UrlCheck urlCheck = new UrlCheck();
+            urlCheck.setUrlId(url.getId());
+            urlCheck.setStatusCode(statusCode);
+            urlCheck.setTitle(title);
+            urlCheck.setH1(h1);
+            urlCheck.setDescription(description);
+
+            return urlCheck;
+        } catch (UnirestException e) {
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
+File: ./app/src/main/java/hexlet/code/repository/UrlCheckRepository.java
+package hexlet.code.repository;
+
+import hexlet.code.model.UrlCheck;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+
+public class UrlCheckRepository extends BaseRepository {
+
+    public static void save(UrlCheck urlCheck) throws SQLException {
+        String sql = "INSERT INTO url_checks (url_id, status_code, title, h1, description, created_at) "
+                   + "VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            stmt.setLong(1, urlCheck.getUrlId());
+            stmt.setInt(2, urlCheck.getStatusCode());
+            stmt.setString(3, urlCheck.getTitle());
+            stmt.setString(4, urlCheck.getH1());
+            stmt.setString(5, urlCheck.getDescription());
+            stmt.setTimestamp(6, new Timestamp(System.currentTimeMillis()));
+
+            stmt.executeUpdate();
+
+            try (var generatedKeys = stmt.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    urlCheck.setId(generatedKeys.getLong(1));
+                }
+            }
+        }
+    }
+
+    public static List<UrlCheck> findByUrlId(Long urlId) throws SQLException {
+        String sql = "SELECT * FROM url_checks WHERE url_id = ? ORDER BY created_at DESC";
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, urlId);
+            var resultSet = stmt.executeQuery();
+            var checks = new ArrayList<UrlCheck>();
+
+            while (resultSet.next()) {
+                var check = new UrlCheck();
+                check.setId(resultSet.getLong("id"));
+                check.setUrlId(resultSet.getLong("url_id"));
+                check.setStatusCode(resultSet.getInt("status_code"));
+                check.setTitle(resultSet.getString("title"));
+                check.setH1(resultSet.getString("h1"));
+                check.setDescription(resultSet.getString("description"));
+                check.setCreatedAt(resultSet.getTimestamp("created_at"));
+                checks.add(check);
+            }
+            return checks;
+        }
+    }
+}
+File: ./app/src/main/java/hexlet/code/repository/BaseRepository.java
+package hexlet.code.repository;
+
+import com.zaxxer.hikari.HikariDataSource;
+
+public class BaseRepository {
+    protected static HikariDataSource dataSource;
+
+    public static void setDataSource(HikariDataSource newDataSource) {
+        dataSource = newDataSource;
+    }
+}
+File: ./app/src/main/java/hexlet/code/repository/UrlRepository.java
+package hexlet.code.repository;
+
+import hexlet.code.model.Url;
+import hexlet.code.model.UrlCheck;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class UrlRepository extends BaseRepository {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(UrlRepository.class);
+
+    public static void save(Url url) throws SQLException {
+        var sql = "INSERT INTO urls (name, created_at) VALUES (?, ?)";
+        LOGGER.debug("Executing SQL: {}", sql);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setString(1, url.getName());
+            stmt.setTimestamp(2, new Timestamp(System.currentTimeMillis()));
+
+            int affectedRows = stmt.executeUpdate();
+            LOGGER.debug("Affected rows: {}", affectedRows);
+
+            try (var generatedKeys = stmt.getGeneratedKeys()) {
+                if (generatedKeys.next()) {
+                    url.setId(generatedKeys.getLong(1));
+                    LOGGER.info("URL saved. ID: {}, Name: {}", url.getId(), url.getName());
+                } else {
+                    LOGGER.error("Failed to get generated ID for URL: {}", url.getName());
+                    throw new SQLException("DB have not returned an id after saving an entity");
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.error("Error saving URL: {}", url.getName(), e);
+            throw e;
+        }
+    }
+
+    public static Optional<Url> findByName(String name) throws SQLException {
+        var sql = "SELECT * FROM urls WHERE name = ?";
+        LOGGER.debug("Executing SQL: {} with parameter: {}", sql, name);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, name);
+            var rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                Url url = new Url();
+                url.setId(rs.getLong("id"));
+                url.setName(rs.getString("name"));
+                url.setCreatedAt(rs.getTimestamp("created_at"));
+
+                LOGGER.debug("Found URL by name: {}", name);
+                return Optional.of(url);
+            }
+            LOGGER.debug("URL not found by name: {}", name);
+            return Optional.empty();
+        }
+    }
+
+    public static Optional<Url> findById(long id) throws SQLException {
+        var sql = "SELECT * FROM urls WHERE id = ?";
+        LOGGER.debug("Executing SQL: {} with parameter: {}", sql, id);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, id);
+            var rs = stmt.executeQuery();
+            if (rs.next()) {
+                Url url = new Url();
+                url.setId(rs.getLong("id"));
+                url.setName(rs.getString("name"));
+                url.setCreatedAt(rs.getTimestamp("created_at"));
+
+                LOGGER.debug("Found URL by ID: {}", id);
+                return Optional.of(url);
+            }
+            LOGGER.debug("URL not found by ID: {}", id);
+            return Optional.empty();
+        }
+    }
+
+    public static List<Url> getEntities() throws SQLException {
+        var sql = "SELECT u.id, u.name, u.created_at, "
+                + "uc.status_code, uc.created_at AS last_check_date "
+                + "FROM urls u "
+                + "LEFT JOIN ( "
+                + "  SELECT url_id, status_code, created_at, "
+                + "         ROW_NUMBER() OVER (PARTITION BY url_id ORDER BY created_at DESC) as rn "
+                + "  FROM url_checks "
+                + ") uc ON u.id = uc.url_id AND uc.rn = 1 "
+                + "ORDER BY u.created_at DESC";
+
+        LOGGER.info("Executing SQL: {}", sql);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+            var rs = stmt.executeQuery();
+            var urls = new ArrayList<Url>();
+            while (rs.next()) {
+                Url url = new Url();
+                url.setId(rs.getLong("id"));
+                url.setName(rs.getString("name"));
+                url.setCreatedAt(rs.getTimestamp("created_at"));
+
+                if (rs.getObject("status_code") != null) {
+                    UrlCheck lastCheck = new UrlCheck();
+                    lastCheck.setStatusCode(rs.getInt("status_code"));
+                    lastCheck.setCreatedAt(rs.getTimestamp("last_check_date"));
+                    url.setLastCheck(lastCheck);
+                }
+
+                urls.add(url);
+                LOGGER.debug("Retrieved URL: ID={}, Name={}, LastCheck={}",
+                    url.getId(), url.getName(), url.getLastCheck());
+            }
+            LOGGER.info("Total URLs retrieved: {}", urls.size());
+            return urls;
+        }
+    }
+}
+File: ./app/src/main/java/hexlet/code/dto/UrlDto.java
+package hexlet.code.dto;
+
+public final class UrlDto {
+    private String url;
+
+    public UrlDto() { }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+}
+File: ./app/src/main/resources/templates/index.jte
+@import hexlet.code.util.NamedRoutes
+@param String flash
+
+@template.layout.page(
+    content = @`
+        @if(flash != null)
+            <div class="alert alert-info">${flash}</div>
+        @endif
+
+        <h1 class="mb-4">Добавить новый URL</h1>
+        <form action="${NamedRoutes.urlsPath()}" method="post" class="mb-5">
+            <div class="input-group">
+                <input
+                    type="url"
+                    name="url"
+                    class="form-control"
+                    placeholder="https://example.com"
+                    required
+                >
+                <button class="btn btn-primary" type="submit">Добавить</button>
+            </div>
+        </form>
+    `
+)File: ./app/src/main/resources/templates/urls/show.jte
+@import hexlet.code.util.NamedRoutes
+@import java.util.List
+@import hexlet.code.model.Url
+@import hexlet.code.model.UrlCheck
+
+@param String flash
+@param Url url
+@param List<UrlCheck> checks
+
+@template.layout.page(
+    content = @`
+        @if(flash != null)
+            <div class="alert alert-info">${flash}</div>
+        @endif
+
+        <h1 class="mb-4">Детали URL</h1>
+        <dl class="row">
+            <dt class="col-sm-3">ID</dt>
+            <dd class="col-sm-9">${url.getId()}</dd>
+
+            <dt class="col-sm-3">Адрес</dt>
+            <dd class="col-sm-9">${url.getAddress()}</dd>
+
+            <dt class="col-sm-3">Дата создания</dt>
+            <dd class="col-sm-9">${url.getFormattedCreatedAt()}</dd>
+        </dl>
+
+        <form action="${NamedRoutes.checkPath(url.getId())}" method="post" class="mb-3">
+            <button type="submit" class="btn btn-primary">Проверить</button>
+        </form>
+
+        <h2 class="mt-4">Проверки</h2>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Код ответа</th>
+                    <th>Заголовок</th>
+                    <th>H1</th>
+                    <th>Описание</th>
+                    <th>Дата</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if(checks != null && !checks.isEmpty())
+                    @for(UrlCheck check : checks)
+                        <tr>
+                            <td>${check.getId()}</td>
+                            <td>${check.getStatusCode()}</td>
+                            <td>${check.getTitle()}</td>
+                            <td>${check.getH1()}</td>
+                            <td>${check.getDescription()}</td>
+                            <td>${check.getFormattedCreatedAt()}</td>
+                        </tr>
+                    @endfor
+                @else
+                    <tr>
+                        <td colspan="6">Проверок еще не было</td>
+                    </tr>
+                @endif
+            </tbody>
+        </table>
+
+        <a href="${NamedRoutes.urlsPath()}" class="btn btn-secondary">Назад к списку</a>
+    `
+)File: ./app/src/main/resources/templates/urls/index.jte
+@import hexlet.code.util.NamedRoutes
+@import java.util.List
+@import hexlet.code.model.Url
+
+@param String flash
+@param List<Url> urls
+
+@template.layout.page(
+    content = @`
+        @if(flash != null)
+            <div class="alert alert-info alert-dismissible fade show" role="alert">
+                ${flash}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+
+        <h1 class="mb-4">Список добавленных URL</h1>
+
+        @if(urls == null || urls.isEmpty())
+            <div class="alert alert-warning">
+                Нет сохранённых URL. <a href="${NamedRoutes.rootPath()}">Добавить URL</a>
+            </div>
+        @else
+            <div class="table-responsive">
+                <table class="table table-striped url-table">
+                    <thead class="table-dark">
+                        <tr>
+                            <th style="width: 5%">ID</th>
+                            <th style="width: 50%">URL</th>
+                            <th style="width: 15%">Последняя проверка</th>
+                            <th style="width: 10%">Код ответа</th>
+                            <th style="width: 20%">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (Url url : urls)
+                            <tr>
+                                <td>${url.getId()}</td>
+                                <td class="url-cell">
+                                    <a href="${url.getName()}" target="_blank">${url.getName()}</a>
+                                </td>
+                                <td>
+                                    @if(url.getLastCheck() != null)
+                                        ${url.getLastCheck().getFormattedCreatedAt()}
+                                    @endif
+                                </td>
+                                <td>
+                                    @if(url.getLastCheck() != null)
+                                        ${url.getLastCheck().getStatusCode()}
+                                    @endif
+                                </td>
+                                <td>
+                                    <a href="${NamedRoutes.urlPath(url.getId())}" class="btn btn-sm btn-primary">
+                                        Подробнее
+                                    </a>
+                                </td>
+                            </tr>
+                        @endfor
+                    </tbody>
+                </table>
+            </div>
+        @endif
+
+        <div class="mt-4">
+            <a href="${NamedRoutes.rootPath()}" class="btn btn-secondary">На главную</a>
+        </div>
+    `
+)File: ./app/src/main/resources/templates/layout/page.jte
+@import gg.jte.Content
+@import hexlet.code.util.NamedRoutes
+@param Content content
+@param Content footer = null
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Анализатор страниц</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <header class="p-3 bg-dark text-white">
+        <div class="container d-flex flex-column flex-md-row align-items-center justify-content-between">
+            <h1 class="h3 mb-2 mb-md-0">
+                <a href="${NamedRoutes.rootPath()}" class="text-white text-decoration-none">
+                    Анализатор страниц
+                </a>
+            </h1>
+            <nav>
+                <a href="${NamedRoutes.rootPath()}" class="text-white me-3">Главная</a>
+                <a href="${NamedRoutes.urlsPath()}" class="text-white">Сайты</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="container py-5">
+        ${content}
+    </main>
+
+    <footer class="text-center py-3 bg-light">
+        @if(footer != null)
+            ${footer}
+        @else
+            <p>Анализатор страниц</p>
+        @endif
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>File: ./app/src/main/resources/schema.sql
+CREATE TABLE IF NOT EXISTS urls (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS url_checks (
+    id BIGSERIAL PRIMARY KEY,
+    url_id BIGINT NOT NULL REFERENCES urls(id),
+    status_code INT NOT NULL,
+    title VARCHAR(255),
+    h1 VARCHAR(255),
+    description TEXT,
+    created_at TIMESTAMP NOT NULL
+);File: ./app/settings.gradle.kts
+File: ./app/config/checkstyle/checkstyle.xml
+File: ./app/.gitattributes
+File: ./app/gradle/wrapper/gradle-wrapper.properties
+File: ./app/gradle/wrapper/gradle-wrapper.jar
+File: ./app/gradle/libs.versions.toml
+File: ./app/gradlew.bat
+File: ./app/jte-classes/gg/jte/generated/ondemand/urls/JteshowGenerated.class
+File: ./app/jte-classes/gg/jte/generated/ondemand/urls/JteshowGenerated.java
+File: ./app/jte-classes/gg/jte/generated/ondemand/urls/JteshowGenerated$1.class
+File: ./app/jte-classes/gg/jte/generated/ondemand/layout/JtepageGenerated.java
+File: ./app/jte-classes/gg/jte/generated/ondemand/layout/JtepageGenerated.class
+File: ./app/bin/test/hexlet/code/TestBase.class
+File: ./app/bin/test/hexlet/code/controllers/UrlListTest.class
+File: ./app/bin/test/hexlet/code/controllers/UrlCreateTest.class
+File: ./app/bin/test/hexlet/code/controllers/RootControllerTest.class
+File: ./app/bin/test/hexlet/code/controllers/UrlCheckTest.class
+File: ./app/bin/test/hexlet/code/controllers/UrlShowTest.class
+File: ./app/bin/test/hexlet/code/AppTest.class
+File: ./app/bin/main/templates/index.jte
+File: ./app/bin/main/templates/urls/show.jte
+File: ./app/bin/main/templates/urls/index.jte
+File: ./app/bin/main/templates/layout/page.jte
+File: ./app/bin/main/schema.sql
+File: ./app/bin/main/hexlet/code/model/UrlCheck.class
+File: ./app/bin/main/hexlet/code/model/Url.class
+File: ./app/bin/main/hexlet/code/util/NamedRoutes.class
+File: ./app/bin/main/hexlet/code/App.class
+File: ./app/bin/main/hexlet/code/controllers/UrlController.class
+File: ./app/bin/main/hexlet/code/controllers/RootController.class
+File: ./app/bin/main/hexlet/code/service/UrlChecker.class
+File: ./app/bin/main/hexlet/code/repository/UrlRepository.class
+File: ./app/bin/main/hexlet/code/repository/UrlCheckRepository.class
+File: ./app/bin/main/hexlet/code/repository/BaseRepository.class
+File: ./app/bin/main/hexlet/code/dto/UrlDto.class
+File: ./app/build.gradle.kts
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.tasks.testing.logging.TestLogEvent
+
+plugins {
+    application
+    id("com.github.johnrengelman.shadow") version "8.1.1"
+    jacoco
+    checkstyle
+}
+
+group = "hexlet.code"
+version = "1.0-SNAPSHOT"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly("org.projectlombok:lombok:1.18.30")
+    annotationProcessor("org.projectlombok:lombok:1.18.30")
+    
+    implementation("io.javalin:javalin:6.3.0")
+    implementation("io.javalin:javalin-rendering:6.3.0")
+    implementation("gg.jte:jte:3.1.9")
+    implementation("gg.jte:jte-runtime:3.1.9")
+    implementation("com.zaxxer:HikariCP:5.1.0")
+    implementation("org.postgresql:postgresql:42.7.3")
+    implementation("com.h2database:h2:2.2.224")
+    implementation("org.slf4j:slf4j-simple:2.0.9")
+    implementation("com.konghq:unirest-java:3.14.1")
+    implementation("org.jsoup:jsoup:1.15.4")
+    
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("io.javalin:javalin-testtools:6.3.0")
+    testImplementation("org.assertj:assertj-core:3.25.3")
+    testImplementation("com.konghq:unirest-java:3.14.5")
+}
+
+tasks.test {
+    useJUnitPlatform()
+    testLogging {
+        events = setOf(
+            TestLogEvent.PASSED,
+            TestLogEvent.FAILED,
+            TestLogEvent.SKIPPED,
+            TestLogEvent.STANDARD_OUT
+        )
+    }
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
+application {
+    mainClass.set("hexlet.code.App")
+}
+
+tasks.named<ShadowJar>("shadowJar") {
+    archiveBaseName.set("app")
+    archiveClassifier.set("")
+    archiveVersion.set("")
+    
+    manifest {
+        attributes["Main-Class"] = "hexlet.code.App"
+    }
+}File: ./jte-classes/gg/jte/generated/ondemand/JteindexGenerated.java
+File: ./.github/workflows/README.md
+File: ./.github/workflows/build.yml
+File: ./.github/workflows/hexlet-check.yml
+File: ./README.md
+# Анализатор страниц
+
+[![Actions Status](https://github.com/ArturStimbiris/java-project-72/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/ArturStimbiris/java-project-72/actions)
+[![codecov](https://codecov.io/gh/ArturStimbiris/java-project-72/branch/main/graph/badge.svg?token=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)](https://codecov.io/gh/ArturStimbiris/java-project-72)
+
+Анализатор страниц — это учебный проект платформы Hexlet, который предоставляет возможность проверять веб-страницы на SEO-пригодность. Сервис позволяет анализировать HTML-страницы, извлекая важные метаданные, такие как заголовки, описания и ключевые элементы, которые влияют на поисковую оптимизацию.
+
+## Функциональность
+
+- **Добавление URL** для отслеживания и анализа
+- **Проверка страниц** на наличие SEO-элементов:
+  - Код ответа HTTP
+  - Заголовок страницы (title)
+  - Заголовок первого уровня (h1)
+  - Мета-описание (description)
+- **История проверок** с отображением предыдущих результатов
+- **Визуальный интерфейс** для удобного просмотра данных
+
+## Технологии и решения
+
+Проект реализован с использованием современных Java-технологий и фреймворков:
+
+### Backend
+- **Javalin** — легковесный веб-фреймворк для обработки HTTP-запросов
+- **HikariCP** — высокопроизводительный пул соединений с базой данных
+- **Unirest** — HTTP-клиент для выполнения запросов к анализируемым страницам
+- **Jsoup** — парсер HTML для извлечения метаданных со страниц
+
+### База данных
+- **H2** (в режиме in-memory для разработки и тестирования)
+- **PostgreSQL** (для production-окружения)
+- Миграции через SQL-скрипты
+
+### Frontend
+- **JTE** (Java Template Engine) для генерации HTML
+- **Bootstrap** для стилизации и адаптивного дизайна
+
+### Тестирование
+- **JUnit 5** для модульного и интеграционного тестирования
+- **MockWebServer** для тестирования HTTP-запросов
+- **AssertJ** для удобных assertions в тестах
+
+## Архитектурные решения
+
+Проект следует принципам чистой архитектуры с разделением на слои:
+
+1. **Модели данных** (Url, UrlCheck) — представляют бизнес-сущности
+2. **Репозитории** — отвечают за взаимодействие с базой данных
+3. **Сервисы** — содержат бизнес-логику (например, проверку URL)
+4. **Контроллеры** — обрабатывают HTTP-запросы
+5. **Шаблоны** — генерируют HTML-ответы
+
+Для обработки ошибок и валидации используется комбинация исключений и flash-сообщений, которые отображаются пользователю.
+
+## Сборка и запуск
+
+Проект использует Gradle для управления зависимостями и сборки. Доступны следующие задачи:
+
+- `./gradlew build` — сборка проекта
+- `./gradlew test` — запуск тестов
+- `./gradlew checkCode` — проверка кодстайла
+- `./gradlew shadowJar` — создание исполняемого JAR-файла
+
+Для запуска в production-окружении необходимо установить переменные окружения:
+- `JDBC_DATABASE_URL` — URL для подключения к PostgreSQL
+- `PORT` — порт для запуска приложения (по умолчанию 7070)
+
+## Тестирование
+
+Проект включает комплексные тесты, покрывающие:
+- Обработку HTTP-запросов
+- Взаимодействие с базой данных
+- Проверку URL и извлечение метаданных
+- Валидацию вводимых данных
+
+Тесты используют in-memory базу данных H2 для изоляции и скорости выполнения.
+
+---
+
+Этот проект был разработан в рамках обучения на платформе Hexlet и демонстрирует практики разработки веб-приложений на Java.File: ./.gitignore
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# Eclipse
+.settings/
+.classpath
+.project
+bin/
+
+# NetBeans
+nbproject/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# VS Code
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Temp files
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Build reports
+build/reports/
+
+# Игнорируем сгенерированные файлы JTE
+jte-classes/
+
+# Игнорируем папки сборки
+build/
+bin/
+out/
+.gradle/
+
+# Игнорируем файлы IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Игнорируем логи
+*.log
+logs/
+
+# Игнорируем системные файлы
+.DS_Store
+
+app/bin/
+app/jte-classes/File: ./.vscode/settings.json

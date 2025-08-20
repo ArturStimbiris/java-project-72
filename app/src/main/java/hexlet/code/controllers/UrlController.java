@@ -1,5 +1,7 @@
 package hexlet.code.controllers;
 
+import hexlet.code.dto.UrlDto;
+import hexlet.code.dto.UrlInfoDto;
 import hexlet.code.model.Url;
 import hexlet.code.model.UrlCheck;
 import hexlet.code.repository.UrlCheckRepository;
@@ -8,6 +10,7 @@ import hexlet.code.service.UrlChecker;
 import hexlet.code.util.NamedRoutes;
 import io.javalin.http.Context;
 import io.javalin.http.NotFoundResponse;
+import kong.unirest.UnirestException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
@@ -16,6 +19,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class UrlController {
@@ -77,9 +81,31 @@ public class UrlController {
             log.info("Fetching all URLs");
             List<Url> urls = UrlRepository.getEntities();
 
+            List<UrlDto> urlDtos = urls.stream()
+                .map(url -> {
+                    try {
+                        UrlCheck lastCheck = UrlCheckRepository.findLastCheckByUrlId(url.getId());
+                        return new UrlDto(
+                            url.getId(),
+                            url.getName(),
+                            url.getCreatedAt(),
+                            lastCheck
+                        );
+                    } catch (SQLException e) {
+                        log.error("Error fetching last check for URL ID: {}", url.getId(), e);
+                        return new UrlDto(
+                            url.getId(),
+                            url.getName(),
+                            url.getCreatedAt(),
+                            null
+                        );
+                    }
+                })
+                .collect(Collectors.toList());
+
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
-            model.put("urls", urls);
+            model.put("urls", urlDtos);
             ctx.render("urls/index.jte", model);
         } catch (SQLException e) {
             log.error("Database error when fetching URLs", e);
@@ -96,11 +122,11 @@ public class UrlController {
                     .orElseThrow(() -> new NotFoundResponse("URL не найден"));
 
             List<UrlCheck> checks = UrlCheckRepository.findByUrlId(id);
+            UrlInfoDto urlInfo = new UrlInfoDto(url, checks);
 
             Map<String, Object> model = new HashMap<>();
             model.put("flash", ctx.attribute("flash"));
-            model.put("url", url);
-            model.put("checks", checks);
+            model.put("urlInfo", urlInfo);
             ctx.render("urls/show.jte", model);
         } catch (SQLException e) {
             log.error("Database error when fetching URL by ID: {}", id, e);
@@ -120,6 +146,9 @@ public class UrlController {
             UrlCheckRepository.save(check);
 
             ctx.sessionAttribute("flash", "Страница успешно проверена");
+        } catch (UnirestException e) {
+            log.error("Network error during URL check", e);
+            ctx.sessionAttribute("flash", "Ошибка сети: невозможно подключиться к сайту");
         } catch (SQLException e) {
             log.error("Database error during URL check", e);
             ctx.sessionAttribute("flash", "Ошибка базы данных");

@@ -1,7 +1,7 @@
 package hexlet.code.model;
 
-import java.sql.Timestamp;
-import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 public final class UrlCheck {
     private Long id;
@@ -10,9 +10,9 @@ public final class UrlCheck {
     private String title;
     private String h1;
     private String description;
-    private Timestamp createdAt;
+    private LocalDateTime createdAt;
 
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     public Long getId() {
         return id;
@@ -62,11 +62,11 @@ public final class UrlCheck {
         this.description = description;
     }
 
-    public Timestamp getCreatedAt() {
+    public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
-    public void setCreatedAt(Timestamp createdAt) {
+    public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
 

@@ -3,10 +3,12 @@ package hexlet.code.repository;
 import hexlet.code.model.UrlCheck;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class UrlCheckRepository extends BaseRepository {
 
     public static void save(UrlCheck urlCheck) throws SQLException {
@@ -21,20 +23,25 @@ public class UrlCheckRepository extends BaseRepository {
             stmt.setString(3, urlCheck.getTitle());
             stmt.setString(4, urlCheck.getH1());
             stmt.setString(5, urlCheck.getDescription());
-            stmt.setTimestamp(6, new Timestamp(System.currentTimeMillis()));
+            stmt.setObject(6, LocalDateTime.now());
 
             stmt.executeUpdate();
 
             try (var generatedKeys = stmt.getGeneratedKeys()) {
                 if (generatedKeys.next()) {
                     urlCheck.setId(generatedKeys.getLong(1));
+                    log.info("URL check saved. ID: {}, URL ID: {}", urlCheck.getId(), urlCheck.getUrlId());
                 }
             }
+        } catch (SQLException e) {
+            log.error("Error saving URL check for URL ID: {}", urlCheck.getUrlId(), e);
+            throw e;
         }
     }
 
     public static List<UrlCheck> findByUrlId(Long urlId) throws SQLException {
         String sql = "SELECT * FROM url_checks WHERE url_id = ? ORDER BY created_at DESC";
+        log.debug("Executing SQL: {} with parameter: {}", sql, urlId);
 
         try (var conn = dataSource.getConnection();
              var stmt = conn.prepareStatement(sql)) {
@@ -51,10 +58,38 @@ public class UrlCheckRepository extends BaseRepository {
                 check.setTitle(resultSet.getString("title"));
                 check.setH1(resultSet.getString("h1"));
                 check.setDescription(resultSet.getString("description"));
-                check.setCreatedAt(resultSet.getTimestamp("created_at"));
+                check.setCreatedAt(resultSet.getTimestamp("created_at").toLocalDateTime());
                 checks.add(check);
             }
+            log.debug("Found {} checks for URL ID: {}", checks.size(), urlId);
             return checks;
+        }
+    }
+
+    public static UrlCheck findLastCheckByUrlId(Long urlId) throws SQLException {
+        String sql = "SELECT * FROM url_checks WHERE url_id = ? ORDER BY created_at DESC LIMIT 1";
+        log.debug("Executing SQL: {} with parameter: {}", sql, urlId);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+
+            stmt.setLong(1, urlId);
+            var resultSet = stmt.executeQuery();
+
+            if (resultSet.next()) {
+                var check = new UrlCheck();
+                check.setId(resultSet.getLong("id"));
+                check.setUrlId(resultSet.getLong("url_id"));
+                check.setStatusCode(resultSet.getInt("status_code"));
+                check.setTitle(resultSet.getString("title"));
+                check.setH1(resultSet.getString("h1"));
+                check.setDescription(resultSet.getString("description"));
+                check.setCreatedAt(resultSet.getTimestamp("created_at").toLocalDateTime());
+                log.debug("Found last check for URL ID: {}", urlId);
+                return check;
+            }
+            log.debug("No checks found for URL ID: {}", urlId);
+            return null;
         }
     }
 }

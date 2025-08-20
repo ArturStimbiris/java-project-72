@@ -1,9 +1,9 @@
 @import hexlet.code.util.NamedRoutes
+@import hexlet.code.dto.UrlDto
 @import java.util.List
-@import hexlet.code.model.Url
 
 @param String flash
-@param List<Url> urls
+@param List<UrlDto> urls
 
 @template.layout.page(
     content = @`
@@ -33,7 +33,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @for (Url url : urls)
+                        @for (UrlDto url : urls)
                             <tr>
                                 <td>${url.getId()}</td>
                                 <td class="url-cell">
