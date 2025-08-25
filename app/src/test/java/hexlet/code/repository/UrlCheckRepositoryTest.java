@@ -13,6 +13,12 @@ public class UrlCheckRepositoryTest extends TestBase {
 
     private Url testUrl;
 
+    /**
+     * Sets up the test environment before each test method execution.
+     * Initializes a test URL in the database.
+     *
+     * @throws SQLException if any database error occurs during setup
+     */
     @BeforeEach
     public void setUp() throws SQLException {
         testUrl = new Url("https://example.com");
