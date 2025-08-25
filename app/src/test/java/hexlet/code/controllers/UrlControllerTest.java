@@ -137,4 +137,63 @@ public class UrlControllerTest extends TestBase {
             assertThat(check.getDescription()).isEqualTo("Test Description");
         });
     }
+
+    @Test
+    void testCheckUrlWithError() throws SQLException, IOException {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(500));
+
+        String testUrl = mockWebServer.url("/").toString();
+
+        JavalinTest.test(app, (server, client) -> {
+            Url url = new Url(testUrl);
+            UrlRepository.save(url);
+
+            var response = client.post("/urls/" + url.getId() + "/checks");
+            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+        });
+    }
+
+    @Test
+    void testCreateExistingUrl() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            // Create first URL
+            String form = "url=https://existing.com";
+            Response response1 = client.post("/urls", form);
+            assertThat(response1.code()).isEqualTo(200);
+
+            // Try to create same URL again
+            Response response2 = client.post("/urls", form);
+            assertThat(response2.code()).isEqualTo(200);
+
+            // Should still have only one URL
+            List<Url> urls = UrlRepository.getEntities();
+            assertThat(urls).hasSize(1);
+        });
+    }
+
+    @Test
+    void testCreateUrlWithLongName() throws SQLException, IOException {
+        String longUrl = "https://example.com/" + "a".repeat(1000);
+
+        JavalinTest.test(app, (server, client) -> {
+            var response = client.post("/urls", "url=" + longUrl);
+            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+        });
+    }
+
+    @Test
+    void testCreateUrlWithEmptyParameter() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            var response = client.post("/urls", "url=");
+            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+        });
+    }
+
+    @Test
+    void testCreateUrlWithMalformedUrl() throws SQLException, IOException {
+        JavalinTest.test(app, (server, client) -> {
+            var response = client.post("/urls", "url=invalid-url");
+            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+        });
+    }
 }
