@@ -11,19 +11,23 @@ import hexlet.code.util.NamedRoutes;
 import io.javalin.Javalin;
 import io.javalin.rendering.template.JavalinJte;
 import kong.unirest.Unirest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.stream.Collectors;
 import java.util.Map;
 import java.util.HashMap;
 
 public class App {
 
+    private static final Logger LOG = LoggerFactory.getLogger(App.class);
+
     static {
-        // Конфигурация Unirest
         Unirest.config()
             .socketTimeout(5000)
             .connectTimeout(5000)
@@ -92,6 +96,12 @@ public class App {
             Javalin app = Javalin.create(config -> {
                 TemplateEngine templateEngine = createTemplateEngine();
                 config.fileRenderer(new JavalinJte(templateEngine));
+            });
+
+            app.exception(SQLException.class, (e, ctx) -> {
+                LOG.error("Database error: {}", e.getMessage());
+                ctx.sessionAttribute("flash", "Ошибка базы данных");
+                ctx.redirect(NamedRoutes.rootPath());
             });
 
             app.before(ctx -> {

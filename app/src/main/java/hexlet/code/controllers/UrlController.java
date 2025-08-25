@@ -69,69 +69,59 @@ public class UrlController {
 
             ctx.sessionAttribute("flash", "Страница успешно добавлена");
             ctx.redirect(NamedRoutes.urlsPath());
-        } catch (SQLException e) {
-            log.error("Database error when saving URL", e);
-            ctx.sessionAttribute("flash", "Ошибка базы данных");
+        } catch (Exception e) {
+            log.error("Error when saving URL", e);
+            ctx.sessionAttribute("flash", "Ошибка при сохранении URL");
             ctx.redirect(NamedRoutes.rootPath());
         }
     }
 
-    public static void index(Context ctx) {
-        try {
-            log.info("Fetching all URLs");
-            List<Url> urls = UrlRepository.getEntities();
+    public static void index(Context ctx) throws SQLException {
+        log.info("Fetching all URLs");
+        List<Url> urls = UrlRepository.getEntities();
 
-            List<UrlDto> urlDtos = urls.stream()
-                .map(url -> {
-                    try {
-                        UrlCheck lastCheck = UrlCheckRepository.findLastCheckByUrlId(url.getId());
-                        return new UrlDto(
-                            url.getId(),
-                            url.getName(),
-                            url.getCreatedAt(),
-                            lastCheck
-                        );
-                    } catch (SQLException e) {
-                        log.error("Error fetching last check for URL ID: {}", url.getId(), e);
-                        return new UrlDto(
-                            url.getId(),
-                            url.getName(),
-                            url.getCreatedAt(),
-                            null
-                        );
-                    }
-                })
-                .collect(Collectors.toList());
+        List<UrlDto> urlDtos = urls.stream()
+            .map(url -> {
+                try {
+                    UrlCheck lastCheck = UrlCheckRepository.findLastCheckByUrlId(url.getId());
+                    return new UrlDto(
+                        url.getId(),
+                        url.getName(),
+                        url.getCreatedAt(),
+                        lastCheck
+                    );
+                } catch (SQLException e) {
+                    log.error("Error fetching last check for URL ID: {}", url.getId(), e);
+                    return new UrlDto(
+                        url.getId(),
+                        url.getName(),
+                        url.getCreatedAt(),
+                        null
+                    );
+                }
+            })
+            .collect(Collectors.toList());
 
-            Map<String, Object> model = new HashMap<>();
-            model.put("flash", ctx.attribute("flash"));
-            model.put("urls", urlDtos);
-            ctx.render("urls/index.jte", model);
-        } catch (SQLException e) {
-            log.error("Database error when fetching URLs", e);
-            ctx.status(500).result("Ошибка при доступе к базе данных");
-        }
+        Map<String, Object> model = new HashMap<>();
+        model.put("flash", ctx.attribute("flash"));
+        model.put("urls", urlDtos);
+        ctx.render("urls/index.jte", model);
     }
 
-    public static void show(Context ctx) {
+    public static void show(Context ctx) throws SQLException {
         long id = ctx.pathParamAsClass("id", Long.class).get();
         log.info("Fetching URL by ID: {}", id);
 
-        try {
-            var url = UrlRepository.findById(id)
-                    .orElseThrow(() -> new NotFoundResponse("URL не найден"));
+        var url = UrlRepository.findById(id)
+                .orElseThrow(() -> new NotFoundResponse("URL не найден"));
 
-            List<UrlCheck> checks = UrlCheckRepository.findByUrlId(id);
-            UrlInfoDto urlInfo = new UrlInfoDto(url, checks);
+        List<UrlCheck> checks = UrlCheckRepository.findByUrlId(id);
+        UrlInfoDto urlInfo = new UrlInfoDto(url, checks);
 
-            Map<String, Object> model = new HashMap<>();
-            model.put("flash", ctx.attribute("flash"));
-            model.put("urlInfo", urlInfo);
-            ctx.render("urls/show.jte", model);
-        } catch (SQLException e) {
-            log.error("Database error when fetching URL by ID: {}", id, e);
-            ctx.status(500).result("Ошибка при доступе к базе данных");
-        }
+        Map<String, Object> model = new HashMap<>();
+        model.put("flash", ctx.attribute("flash"));
+        model.put("urlInfo", urlInfo);
+        ctx.render("urls/show.jte", model);
     }
 
     public static void check(Context ctx) {
@@ -149,9 +139,6 @@ public class UrlController {
         } catch (UnirestException e) {
             log.error("Network error during URL check", e);
             ctx.sessionAttribute("flash", "Ошибка сети: невозможно подключиться к сайту");
-        } catch (SQLException e) {
-            log.error("Database error during URL check", e);
-            ctx.sessionAttribute("flash", "Ошибка базы данных");
         } catch (Exception e) {
             log.error("Error during URL check", e);
             ctx.sessionAttribute("flash", "Ошибка при проверке: " + e.getMessage());
