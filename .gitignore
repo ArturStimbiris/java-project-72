@@ -68,3 +68,5 @@ logs/
 
 app/bin/
 app/jte-classes/
+jte-classes/
+app/javac.*
