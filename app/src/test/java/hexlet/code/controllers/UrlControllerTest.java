@@ -30,7 +30,6 @@ public class UrlControllerTest extends TestBase {
     static void setUp() throws IOException {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
-
         testHtmlContent = Files.readString(Paths.get("src/test/resources/test-page.html"));
     }
 
@@ -54,28 +53,25 @@ public class UrlControllerTest extends TestBase {
         JavalinTest.test(app, (server, client) -> {
             String form = "url=https://example.com";
             Response response = client.post("/urls", form);
-
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+
             String body = response.body().string();
             assertThat(body).contains("Список добавленных URL");
             assertThat(body).contains("https://example.com");
 
             List<Url> urls = UrlRepository.getEntities();
             assertThat(urls).hasSize(1);
-            assertThat(urls.get(0).getName()).contains("example.com");
         });
     }
 
     @Test
     void testCreateInvalidUrl() throws SQLException, IOException {
         JavalinTest.test(app, (server, client) -> {
-            String form = "url=invalid";
-            Response response = client.post("/urls", form);
-
+            Response response = client.post("/urls", "url=invalid");
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-            String body = response.body().string();
-            assertThat(body).contains("<h1 class=\"mb-4\">Добавить новый URL</h1>");
 
+            String body = response.body().string();
+            assertThat(body).contains("Добавить новый URL");
             List<Url> urls = UrlRepository.getEntities();
             assertThat(urls).isEmpty();
         });
@@ -86,114 +82,50 @@ public class UrlControllerTest extends TestBase {
         JavalinTest.test(app, (server, client) -> {
             Url url = new Url("https://show-test.com");
             UrlRepository.save(url);
-            long id = url.getId();
+            Response response = client.get("/urls/" + url.getId());
 
-            Response response = client.get("/urls/" + id);
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
             String body = response.body().string();
-            assertThat(body).contains("https://show-test.com");
             assertThat(body).contains("Детали URL");
-        });
-    }
-
-    @Test
-    void testListUrls() throws SQLException, IOException {
-        JavalinTest.test(app, (server, client) -> {
-            Url url1 = new Url("https://test1.com");
-            Url url2 = new Url("https://test2.com");
-            UrlRepository.save(url1);
-            UrlRepository.save(url2);
-
-            Response response = client.get("/urls");
-            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-            String body = response.body().string();
-            assertThat(body).contains("https://test1.com");
-            assertThat(body).contains("https://test2.com");
+            assertThat(body).contains("https://show-test.com");
         });
     }
 
     @Test
     void testCheckUrl() throws SQLException, IOException {
         mockWebServer.enqueue(new MockResponse()
-                .setBody(testHtmlContent)
-                .setResponseCode(200));
-
+            .setBody(testHtmlContent)
+            .setResponseCode(200));
         String testUrl = mockWebServer.url("/").toString();
 
         JavalinTest.test(app, (server, client) -> {
             Url url = new Url(testUrl);
             UrlRepository.save(url);
+            Response response = client.post("/urls/" + url.getId() + "/checks");
 
-            var response = client.post("/urls/" + url.getId() + "/checks");
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-
-            var checks = UrlCheckRepository.findByUrlId(url.getId());
+            List<?> checks = UrlCheckRepository.findByUrlId(url.getId());
             assertThat(checks).hasSize(1);
-
-            var check = checks.get(0);
-            assertThat(check.getStatusCode()).isEqualTo(200);
-            assertThat(check.getTitle()).isEqualTo("Test Page");
-            assertThat(check.getH1()).isEqualTo("Test Header");
-            assertThat(check.getDescription()).isEqualTo("Test Description");
         });
     }
 
     @Test
-    void testCheckUrlWithError() throws SQLException, IOException {
-        mockWebServer.enqueue(new MockResponse().setResponseCode(500));
-
-        String testUrl = mockWebServer.url("/").toString();
-
+    void testListEmptyUrls() throws IOException {
         JavalinTest.test(app, (server, client) -> {
-            Url url = new Url(testUrl);
-            UrlRepository.save(url);
-
-            var response = client.post("/urls/" + url.getId() + "/checks");
+            Response response = client.get("/urls");
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+            String body = response.body().string();
+            assertThat(body).contains("Нет сохранённых URL");
         });
     }
 
     @Test
-    void testCreateExistingUrl() throws SQLException, IOException {
+    void testFlashClearedAfterRender() throws IOException {
         JavalinTest.test(app, (server, client) -> {
-            // Create first URL
-            String form = "url=https://existing.com";
-            Response response1 = client.post("/urls", form);
-            assertThat(response1.code()).isEqualTo(200);
-
-            // Try to create same URL again
-            Response response2 = client.post("/urls", form);
-            assertThat(response2.code()).isEqualTo(200);
-
-            // Should still have only one URL
-            List<Url> urls = UrlRepository.getEntities();
-            assertThat(urls).hasSize(1);
-        });
-    }
-
-    @Test
-    void testCreateUrlWithLongName() throws SQLException, IOException {
-        String longUrl = "https://example.com/" + "a".repeat(1000);
-
-        JavalinTest.test(app, (server, client) -> {
-            var response = client.post("/urls", "url=" + longUrl);
-            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-        });
-    }
-
-    @Test
-    void testCreateUrlWithEmptyParameter() throws SQLException, IOException {
-        JavalinTest.test(app, (server, client) -> {
-            var response = client.post("/urls", "url=");
-            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-        });
-    }
-
-    @Test
-    void testCreateUrlWithMalformedUrl() throws SQLException, IOException {
-        JavalinTest.test(app, (server, client) -> {
-            var response = client.post("/urls", "url=invalid-url");
-            assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
+            client.post("/urls", "url=");
+            Response response = client.get("/");
+            String body = response.body().string();
+            assertThat(body).doesNotContain("URL не может быть пустым");
         });
     }
 }

@@ -1,68 +1,88 @@
 package hexlet.code.repository;
 
+import hexlet.code.TestBase;
 import hexlet.code.model.Url;
 import hexlet.code.model.UrlCheck;
-import hexlet.code.TestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class UrlCheckRepositoryTest extends TestBase {
 
-    private Url testUrl;
+    private Url url1;
+    private Url url2;
 
-    /**
-     * Sets up the test environment before each test method execution.
-     * Initializes a test URL in the database.
-     *
-     * @throws SQLException if any database error occurs during setup
-     */
     @BeforeEach
-    public void setUp() throws SQLException {
-        testUrl = new Url("https://example.com");
-        UrlRepository.save(testUrl);
+    void initUrls() throws SQLException {
+        url1 = new Url("https://a.example.com");
+        url2 = new Url("https://b.example.com");
+        UrlRepository.save(url1);
+        UrlRepository.save(url2);
     }
 
     @Test
-    void testSave() throws SQLException {
-        UrlCheck check = new UrlCheck();
-        check.setUrlId(testUrl.getId());
-        check.setStatusCode(200);
-        check.setTitle("Test Title");
-        check.setH1("Test H1");
-        check.setDescription("Test Description");
-        UrlCheckRepository.save(check);
-        assertThat(check.getId()).isNotNull();
+    void testEmptyFindByUrlId() throws SQLException {
+        List<UrlCheck> checks = UrlCheckRepository.findByUrlId(url1.getId());
+        assertThat(checks).isEmpty();
     }
 
     @Test
-    void testFindByUrlId() throws SQLException {
+    void testSaveAndFindByUrlId() throws SQLException {
         UrlCheck check = new UrlCheck();
-        check.setUrlId(testUrl.getId());
+        check.setUrlId(url1.getId());
         check.setStatusCode(200);
         UrlCheckRepository.save(check);
 
-        List<UrlCheck> checks = UrlCheckRepository.findByUrlId(testUrl.getId());
-        assertThat(checks).hasSize(1);
-        assertThat(checks.get(0).getStatusCode()).isEqualTo(200);
+        List<UrlCheck> checks = UrlCheckRepository.findByUrlId(url1.getId());
+        assertThat(checks).hasSize(1)
+            .first().matches(c ->
+                c.getStatusCode() == 200
+                && c.getUrlId().equals(url1.getId())
+        );
     }
 
     @Test
     void testFindLastCheckByUrlId() throws SQLException {
-        UrlCheck check1 = new UrlCheck();
-        check1.setUrlId(testUrl.getId());
-        check1.setStatusCode(200);
-        UrlCheckRepository.save(check1);
+        UrlCheck first = new UrlCheck();
+        first.setUrlId(url1.getId());
+        first.setStatusCode(200);
+        UrlCheckRepository.save(first);
 
-        UrlCheck check2 = new UrlCheck();
-        check2.setUrlId(testUrl.getId());
-        check2.setStatusCode(404);
-        UrlCheckRepository.save(check2);
+        UrlCheck second = new UrlCheck();
+        second.setUrlId(url1.getId());
+        second.setStatusCode(404);
+        UrlCheckRepository.save(second);
 
-        UrlCheck lastCheck = UrlCheckRepository.findLastCheckByUrlId(testUrl.getId());
-        assertThat(lastCheck).isNotNull();
-        assertThat(lastCheck.getStatusCode()).isEqualTo(404);
+        UrlCheck last = UrlCheckRepository.findLastCheckByUrlId(url1.getId());
+        assertThat(last).isNotNull();
+        assertThat(last.getStatusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void testFindLatestChecksMap() throws SQLException {
+        UrlCheck c1 = new UrlCheck();
+        c1.setUrlId(url1.getId());
+        c1.setStatusCode(200);
+        UrlCheckRepository.save(c1);
+
+        UrlCheck c2 = new UrlCheck();
+        c2.setUrlId(url2.getId());
+        c2.setStatusCode(301);
+        UrlCheckRepository.save(c2);
+
+        UrlCheck c3 = new UrlCheck();
+        c3.setUrlId(url1.getId());
+        c3.setStatusCode(500);
+        UrlCheckRepository.save(c3);
+
+        Map<Long, UrlCheck> latest = UrlCheckRepository.findLatestChecks();
+        assertThat(latest).hasSize(2);
+        assertThat(latest.get(url1.getId()).getStatusCode()).isEqualTo(500);
+        assertThat(latest.get(url2.getId()).getStatusCode()).isEqualTo(301);
     }
 }

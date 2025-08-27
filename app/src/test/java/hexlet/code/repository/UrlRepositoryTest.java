@@ -1,55 +1,51 @@
 package hexlet.code.repository;
 
-import hexlet.code.model.Url;
 import hexlet.code.TestBase;
-import org.junit.jupiter.api.BeforeEach;
+import hexlet.code.model.Url;
 import org.junit.jupiter.api.Test;
+
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class UrlRepositoryTest extends TestBase {
 
-    private Url testUrl;
-
-    /**
-     * Sets up the test environment before each test method execution.
-     * Initializes a test URL in the database.
-     *
-     * @throws SQLException if any database error occurs during setup
-     */
-    @BeforeEach
-    public void setUp() throws SQLException {
-        testUrl = new Url("https://example.com");
-        UrlRepository.save(testUrl);
-    }
-
     @Test
-    void testSave() throws SQLException {
-        Url newUrl = new Url("https://test.com");
-        UrlRepository.save(newUrl);
-        assertThat(newUrl.getId()).isNotNull();
-    }
-
-    @Test
-    void testFindByName() throws SQLException {
-        Optional<Url> found = UrlRepository.findByName(testUrl.getName());
-        assertThat(found).isPresent();
-        assertThat(found.get().getName()).isEqualTo(testUrl.getName());
-    }
-
-    @Test
-    void testFindById() throws SQLException {
-        Optional<Url> found = UrlRepository.findById(testUrl.getId());
-        assertThat(found).isPresent();
-        assertThat(found.get().getName()).isEqualTo(testUrl.getName());
-    }
-
-    @Test
-    void testGetEntities() throws SQLException {
+    void testEmptyGetEntities() throws SQLException {
         List<Url> urls = UrlRepository.getEntities();
-        assertThat(urls).hasSize(1);
-        assertThat(urls.get(0).getName()).isEqualTo(testUrl.getName());
+        assertThat(urls).isEmpty();
+    }
+
+    @Test
+    void testFindByNameNotFound() throws SQLException {
+        Optional<Url> found = UrlRepository.findByName("http://nonexistent.test");
+        assertThat(found).isEmpty();
+    }
+
+    @Test
+    void testFindByIdNotFound() throws SQLException {
+        Optional<Url> found = UrlRepository.findById(999L);
+        assertThat(found).isEmpty();
+    }
+
+    @Test
+    void testSaveAndFind() throws SQLException {
+        Url url = new Url("https://example.com");
+        UrlRepository.save(url);
+        assertThat(url.getId()).isNotNull();
+
+        Optional<Url> byName = UrlRepository.findByName(url.getName());
+        assertThat(byName).isPresent()
+            .get().matches(u -> u.getName().equals(url.getName()));
+
+        Optional<Url> byId = UrlRepository.findById(url.getId());
+        assertThat(byId).isPresent()
+            .get().matches(u -> u.getId().equals(url.getId()));
+
+        List<Url> urls = UrlRepository.getEntities();
+        assertThat(urls).hasSize(1)
+            .first().matches(u -> u.getName().equals("https://example.com"));
     }
 }
