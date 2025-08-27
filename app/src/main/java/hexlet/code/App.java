@@ -11,21 +11,19 @@ import hexlet.code.util.NamedRoutes;
 import io.javalin.Javalin;
 import io.javalin.rendering.template.JavalinJte;
 import kong.unirest.Unirest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
-import java.util.stream.Collectors;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+@Slf4j
 public class App {
-
-    private static final Logger LOG = LoggerFactory.getLogger(App.class);
 
     static {
         Unirest.config()
@@ -36,105 +34,91 @@ public class App {
             .setDefaultHeader("User-Agent", "Mozilla/5.0 (compatible; MyApp/1.0)");
     }
 
-    private static boolean isProduction() {
-        return System.getenv().getOrDefault("APP_ENV", "dev").equals("prod");
-    }
-
     private static TemplateEngine createTemplateEngine() {
-        ClassLoader classLoader = App.class.getClassLoader();
-        ResourceCodeResolver codeResolver = new ResourceCodeResolver("templates", classLoader);
-        return TemplateEngine.create(codeResolver, ContentType.Html);
+        var classLoader = App.class.getClassLoader();
+        var resolver = new ResourceCodeResolver("templates", classLoader);
+        return TemplateEngine.create(resolver, ContentType.Html);
     }
 
-    public static Javalin getApp() {
-        try {
-            String defaultJdbcUrl = "jdbc:h2:mem:project" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
-            String jdbcUrl = System.getenv().getOrDefault(
-                "JDBC_DATABASE_URL",
-                defaultJdbcUrl
-            );
+    public static Javalin getApp() throws SQLException {
+        String defaultJdbcUrl = "jdbc:h2:mem:project" + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1;";
+        String jdbcUrl = System.getenv().getOrDefault("JDBC_DATABASE_URL", defaultJdbcUrl);
 
-            System.out.println("Using database URL: " + jdbcUrl);
+        log.info("Using database URL: {}", jdbcUrl);
 
-            HikariConfig hikariConfig = new HikariConfig();
-            hikariConfig.setJdbcUrl(jdbcUrl);
-
-            if (jdbcUrl.startsWith("jdbc:h2")) {
-                hikariConfig.setUsername("");
-                hikariConfig.setPassword("");
-            } else if (jdbcUrl.startsWith("jdbc:postgresql")) {
-                hikariConfig.setMaximumPoolSize(5);
-                hikariConfig.setConnectionInitSql("SELECT 1");
-            }
-
-            HikariDataSource dataSource = new HikariDataSource(hikariConfig);
-            BaseRepository.setDataSource(dataSource);
-
-            try (var conn = dataSource.getConnection();
-                 var stmt = conn.createStatement()) {
-                System.out.println("Database connection established");
-
-                InputStream inputStream = App.class.getClassLoader().getResourceAsStream("schema.sql");
-                if (inputStream != null) {
-                    String sql = new BufferedReader(
-                        new InputStreamReader(inputStream, StandardCharsets.UTF_8))
-                        .lines()
-                        .collect(Collectors.joining("\n"));
-
-                    System.out.println("Executing SQL schema:\n" + sql);
-                    stmt.execute(sql);
-                    System.out.println("Database schema initialized");
-                } else {
-                    System.out.println("Schema file not found");
-                }
-            } catch (Exception e) {
-                System.err.println("Database initialization failed:");
-                e.printStackTrace();
-                throw new RuntimeException(e);
-            }
-
-            Javalin app = Javalin.create(config -> {
-                TemplateEngine templateEngine = createTemplateEngine();
-                config.fileRenderer(new JavalinJte(templateEngine));
-            });
-
-            app.exception(SQLException.class, (e, ctx) -> {
-                LOG.error("Database error: {}", e.getMessage());
-                ctx.sessionAttribute("flash", "Ошибка базы данных");
-                ctx.redirect(NamedRoutes.rootPath());
-            });
-
-            app.before(ctx -> {
-                String flash = ctx.sessionAttribute("flash");
-                if (flash != null) {
-                    ctx.attribute("flash", flash);
-                    ctx.sessionAttribute("flash", null);
-                }
-            });
-
-            app.get(NamedRoutes.rootPath(), ctx -> {
-                Map<String, Object> model = new HashMap<>();
-                model.put("flash", ctx.attribute("flash"));
-                ctx.render("index.jte", model);
-            });
-            app.post(NamedRoutes.urlsPath(), UrlController::create);
-            app.get(NamedRoutes.urlsPath(), UrlController::index);
-            app.get(NamedRoutes.urlPath("{id}"), UrlController::show);
-            app.post(NamedRoutes.checkPath("{id}"), UrlController::check);
-
-            return app;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize application", e);
+        var hikariConfig = new HikariConfig();
+        hikariConfig.setJdbcUrl(jdbcUrl);
+        if (jdbcUrl.startsWith("jdbc:h2")) {
+            hikariConfig.setUsername("");
+            hikariConfig.setPassword("");
+        } else if (jdbcUrl.startsWith("jdbc:postgresql")) {
+            hikariConfig.setMaximumPoolSize(5);
+            hikariConfig.setConnectionInitSql("SELECT 1");
         }
+
+        var dataSource = new HikariDataSource(hikariConfig);
+        BaseRepository.setDataSource(dataSource);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.createStatement()) {
+
+            log.info("Database connection established");
+
+            InputStream in = App.class.getClassLoader().getResourceAsStream("schema.sql");
+            if (in != null) {
+                String sql = new BufferedReader(
+                    new InputStreamReader(in, StandardCharsets.UTF_8))
+                    .lines()
+                    .collect(Collectors.joining("\n"));
+
+                log.info("Executing SQL schema:\n{}", sql);
+                stmt.execute(sql);
+                log.info("Database schema initialized");
+            } else {
+                log.warn("Schema file not found");
+            }
+        }
+
+        var app = Javalin.create(cfg -> {
+            var templateEngine = createTemplateEngine();
+            cfg.fileRenderer(new JavalinJte(templateEngine));
+        });
+
+        app.exception(SQLException.class, (e, ctx) -> {
+            log.error("Database error: {}", e.getMessage());
+            ctx.sessionAttribute("flash", "Ошибка базы данных");
+            ctx.redirect(NamedRoutes.rootPath());
+        });
+
+        app.before(ctx -> {
+            var flash = ctx.sessionAttribute("flash");
+            if (flash != null) {
+                ctx.attribute("flash", flash);
+                ctx.sessionAttribute("flash", null);
+            }
+        });
+
+        app.get(NamedRoutes.rootPath(), ctx -> {
+            Map<String, Object> model = new HashMap<>();
+            model.put("flash", ctx.attribute("flash"));
+            ctx.render("index.jte", model);
+        });
+
+        app.post(NamedRoutes.urlsPath(), UrlController::create);
+        app.get(NamedRoutes.urlsPath(), UrlController::index);
+        app.get(NamedRoutes.urlPath("{id}"), UrlController::show);
+        app.post(NamedRoutes.checkPath("{id}"), UrlController::check);
+
+        return app;
     }
 
     public static void main(String[] args) {
         try {
-            Javalin app = getApp();
+            var app = getApp();
             int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "7070"));
             app.start(port);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error("Application failed to start", e);
             System.exit(1);
         }
     }

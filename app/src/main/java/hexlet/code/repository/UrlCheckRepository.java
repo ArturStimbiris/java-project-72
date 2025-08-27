@@ -5,7 +5,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -90,6 +92,40 @@ public class UrlCheckRepository extends BaseRepository {
             }
             log.debug("No checks found for URL ID: {}", urlId);
             return null;
+        }
+    }
+
+    /**
+     * Fetch the latest check for each URL in a single query.
+     *
+     * @return a Map where each key is a URL ID and the corresponding value
+     *         is the most recent UrlCheck for that URL
+     * @throws SQLException if a database access error occurs
+     */
+    public static Map<Long, UrlCheck> findLatestChecks() throws SQLException {
+        String sql = "SELECT DISTINCT ON (url_id) * FROM url_checks "
+                   + "ORDER BY url_id DESC, id DESC";
+        log.debug("Executing SQL to fetch latest checks: {}", sql);
+
+        try (var conn = dataSource.getConnection();
+             var stmt = conn.prepareStatement(sql)) {
+
+            var resultSet = stmt.executeQuery();
+            Map<Long, UrlCheck> result = new HashMap<>();
+
+            while (resultSet.next()) {
+                UrlCheck check = new UrlCheck();
+                check.setId(resultSet.getLong("id"));
+                check.setUrlId(resultSet.getLong("url_id"));
+                check.setStatusCode(resultSet.getInt("status_code"));
+                check.setTitle(resultSet.getString("title"));
+                check.setH1(resultSet.getString("h1"));
+                check.setDescription(resultSet.getString("description"));
+                check.setCreatedAt(resultSet.getTimestamp("created_at").toLocalDateTime());
+                result.put(check.getUrlId(), check);
+            }
+            log.debug("Fetched {} latest checks", result.size());
+            return result;
         }
     }
 }

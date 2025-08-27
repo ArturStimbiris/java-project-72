@@ -79,27 +79,15 @@ public class UrlController {
     public static void index(Context ctx) throws SQLException {
         log.info("Fetching all URLs");
         List<Url> urls = UrlRepository.getEntities();
+        Map<Long, UrlCheck> latestChecks = UrlCheckRepository.findLatestChecks();
 
         List<UrlDto> urlDtos = urls.stream()
-            .map(url -> {
-                try {
-                    UrlCheck lastCheck = UrlCheckRepository.findLastCheckByUrlId(url.getId());
-                    return new UrlDto(
-                        url.getId(),
-                        url.getName(),
-                        url.getCreatedAt(),
-                        lastCheck
-                    );
-                } catch (SQLException e) {
-                    log.error("Error fetching last check for URL ID: {}", url.getId(), e);
-                    return new UrlDto(
-                        url.getId(),
-                        url.getName(),
-                        url.getCreatedAt(),
-                        null
-                    );
-                }
-            })
+            .map(url -> new UrlDto(
+                url.getId(),
+                url.getName(),
+                url.getCreatedAt(),
+                latestChecks.get(url.getId())
+            ))
             .collect(Collectors.toList());
 
         Map<String, Object> model = new HashMap<>();
