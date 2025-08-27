@@ -12,11 +12,20 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class UrlCheckRepositoryTest extends TestBase {
+/**
+ * Tests for UrlCheckRepository: saving checks, querying by URL ID
+ * and fetching the latest check per URL in bulk.
+ */
+public final class UrlCheckRepositoryTest extends TestBase {
 
     private Url url1;
     private Url url2;
 
+    /**
+     * Initializes two Url entities in the in-memory database before each test.
+     *
+     * @throws SQLException if database operations fail
+     */
     @BeforeEach
     void initUrls() throws SQLException {
         url1 = new Url("https://a.example.com");
@@ -39,11 +48,13 @@ public class UrlCheckRepositoryTest extends TestBase {
         UrlCheckRepository.save(check);
 
         List<UrlCheck> checks = UrlCheckRepository.findByUrlId(url1.getId());
-        assertThat(checks).hasSize(1)
-            .first().matches(c ->
+        assertThat(checks)
+            .hasSize(1)
+            .first()
+            .matches(c ->
                 c.getStatusCode() == 200
                 && c.getUrlId().equals(url1.getId())
-        );
+            );
     }
 
     @Test
@@ -59,8 +70,9 @@ public class UrlCheckRepositoryTest extends TestBase {
         UrlCheckRepository.save(second);
 
         UrlCheck last = UrlCheckRepository.findLastCheckByUrlId(url1.getId());
-        assertThat(last).isNotNull();
-        assertThat(last.getStatusCode()).isEqualTo(404);
+        assertThat(last)
+            .isNotNull()
+            .matches(c -> c.getStatusCode() == 404);
     }
 
     @Test
