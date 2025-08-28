@@ -2,6 +2,7 @@ package hexlet.code.controllers;
 
 import hexlet.code.TestBase;
 import hexlet.code.model.Url;
+import hexlet.code.model.UrlCheck;
 import hexlet.code.repository.UrlCheckRepository;
 import hexlet.code.repository.UrlRepository;
 import io.javalin.http.HttpStatus;
@@ -104,8 +105,14 @@ public class UrlControllerTest extends TestBase {
             Response response = client.post("/urls/" + url.getId() + "/checks");
 
             assertThat(response.code()).isEqualTo(HttpStatus.OK.getCode());
-            List<?> checks = UrlCheckRepository.findByUrlId(url.getId());
+            List<UrlCheck> checks = UrlCheckRepository.findByUrlId(url.getId());
             assertThat(checks).hasSize(1);
+
+            UrlCheck check = checks.get(0);
+            assertThat(check.getStatusCode()).isEqualTo(200);
+            assertThat(check.getTitle()).isEqualTo("Test Page");
+            assertThat(check.getH1()).isEqualTo("Test Header");
+            assertThat(check.getDescription()).isEqualTo("Test Description");
         });
     }
 
